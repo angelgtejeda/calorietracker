@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+calorie-config.php
+calorie-tracker.json
+calorie-tracker.lock
+calorie-backups/

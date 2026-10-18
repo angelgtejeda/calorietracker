@@ -78,8 +78,8 @@
     <div class="rounded-2xl border border-teal-500/30 bg-slate-900 p-4 shadow-lg space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
-          <div class="text-sm font-bold text-white">☁️ Calorie Tracker • NAS read-only protection</div>
-          <p class="text-xs text-amber-200">Uploads are disabled in this version. Device edits stay local. Older open pages must be closed separately.</p>
+          <div class="text-sm font-bold text-white">☁️ Calorie Tracker • NAS Synchronization</div>
+          <p class="text-xs text-amber-200">Record changes merge safely with NAS. Conflicting edits pause saving. Install the updated API and reload every device.</p>
           <div id="calorieNasStatus" class="mt-1 text-xs font-semibold text-amber-300" role="status" aria-live="polite">Local-only mode • your browser data is preserved</div>
           <div id="calorieNasDetail" class="mt-1 text-xs text-slate-400">Use NAS Setup to connect to your private Synology storage. Never load the NAS over unsynced local changes without a backup.</div>
         </div>
@@ -87,9 +87,9 @@
           <button id="calorieNasSetupBtn" type="button" class="rounded-lg border border-teal-500/40 bg-teal-950 px-3 py-2 text-xs font-bold text-teal-200">🔐 NAS Setup</button>
           <button id="calorieNasCheckBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Check NAS</button>
           <button id="calorieNasDownloadBtn" type="button" class="rounded-lg border border-sky-500/40 bg-sky-950 px-3 py-2 text-xs font-bold text-sky-200">↓ Load NAS to device</button>
-          <button id="calorieNasUploadBtn" type="button" disabled title="NAS uploads disabled while investigating overwrites" class="rounded-lg border border-emerald-500/40 bg-emerald-950 px-3 py-2 text-xs font-bold text-emerald-200">NAS upload disabled</button>
+          <button id="calorieNasUploadBtn" type="button" class="rounded-lg border border-emerald-500/40 bg-emerald-950 px-3 py-2 text-xs font-bold text-emerald-200">↑ Save device changes to NAS</button>
           <button id="calorieNasBackupBtn" type="button" class="rounded-lg border border-purple-500/50 bg-purple-950 px-3 py-2 text-xs font-bold text-purple-100">↓ Back up NAS copy</button>
-          <button id="calorieNasForceBtn" type="button" disabled title="NAS uploads disabled while investigating overwrites" class="rounded-lg border border-rose-500/50 bg-rose-950 px-3 py-2 text-xs font-bold text-rose-100">NAS replacement disabled</button>
+          <button id="calorieNasForceBtn" type="button" disabled title="Whole-NAS replacement is disabled" class="rounded-lg border border-rose-500/50 bg-rose-950 px-3 py-2 text-xs font-bold text-rose-100">Whole-NAS replacement disabled</button>
           <button id="calorieExportJsonBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Export JSON Backup</button>
           <button id="calorieImportJsonBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Import JSON Backup</button>
           <input id="calorieImportJsonInput" class="hidden" type="file" accept=".json,application/json" />
@@ -2025,14 +2025,15 @@
     // ======================================================================
     // CALORIE NAS: separate endpoint, revision-controlled writes, safe migration
     // ======================================================================
-    // Containment: no NAS writes until the server API and deployed clients are audited.
-    const CALORIE_NAS_READ_ONLY = true;
+    // Writes require the record-merge API; legacy endpoints remain read-only.
+    let calorieNasProtocol = 0;
     const CALORIE_NAS_URL = './calorie-api.php';
     const CALORIE_NAS_TOKEN_KEY = 'calorie_nas_token_v1';
     const CALORIE_NAS_META_KEY = 'calorie_nas_meta_v1';
     let calorieNasToken = '';
     let calorieNasMode = 'local'; // local, busy, ready, conflict, offline
     let calorieNasRevision = null;
+    let calorieNasBaseTag = '';
     let calorieNasRemote = null;
     let calorieNasBusy = false;
     let calorieNasTimer = null;
@@ -2066,11 +2067,12 @@
       catch (_) { return {}; }
     }
     function calorieWriteMeta() {
-      calorieNasMeta = {lastSynced: calorieNasLastSynced, revision: calorieNasRevision, dirty: calorieNasDirty};
+      calorieNasMeta = {lastSynced: calorieNasLastSynced, revision: calorieNasRevision, baseTag: calorieNasBaseTag, dirty: calorieNasDirty};
       try {
         localStorage.setItem(CALORIE_NAS_META_KEY, JSON.stringify({
           lastSynced: calorieNasLastSynced,
           revision: calorieNasRevision,
+          baseTag: calorieNasBaseTag,
           dirty: calorieNasDirty
         }));
       } catch (_) {}
@@ -2091,7 +2093,7 @@
       return `${data.dailyLogs.length} days, ${data.weightTimeline.length} weigh-ins, ${data.bodyFatTimeline.length} body-fat entries`;
     }
     async function calorieRequest(method, body) {
-      if (CALORIE_NAS_READ_ONLY && method !== 'GET') throw new Error('NAS protection is active: uploads are disabled. Edits are saved on this device only.');
+      if (method !== 'GET' && (calorieNasProtocol !== 2 || !body || body.protocol !== 2)) throw new Error('Install the protocol 2 calorie-api.php before saving. Device data is preserved locally.');
       if (!calorieNasToken) throw new Error('Enter the Calorie Tracker token in NAS Setup.');
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
@@ -2131,66 +2133,93 @@
       localStorage.setItem('calorie_macro_weight_app_v2', JSON.stringify(state));
       renderAll();
     }
-    function calorieRecordSynced(data, revision) {
+    function calorieRecordSynced(data, revision, baseTag) {
       calorieNasLastSynced = calorieDataString(data);
       calorieNasRevision = revision;
+      calorieNasBaseTag = baseTag || '';
       calorieNasDirty = false;
       calorieNasPending = false;
       calorieWriteMeta();
-      calorieStatus('ready', 'NAS connected • read-only protection ON', `Loaded: ${calorieCount(data)}. Device edits stay local; uploads to NAS are disabled.`);
+      calorieStatus(calorieNasProtocol===2?'ready':'local', calorieNasProtocol===2?'NAS connected • record auto-save ON':'Legacy NAS API • saving disabled', calorieNasProtocol===2?`Synced: ${calorieCount(data)}. Only edited records are sent; conflicting changes are rejected.`:'Install the updated calorie-api.php before editing NAS records.');
     }
     function calorieOnLocalChange() {
       if (calorieGetLocalData() === calorieNasLastSynced) return;
-      clearTimeout(calorieNasTimer);
-      calorieNasPending = false;
       calorieNasDirty = true;
       calorieWriteMeta();
-      calorieStatus('local', 'Device edits saved locally • NAS uploads disabled',
-        'NAS is protected from this page. Export JSON Backup to preserve device edits; loading NAS replaces device data only.');
+      if (calorieNasBusy || calorieNasProtocol !== 2 || (!['ready','busy'].includes(calorieNasMode) && !calorieNasSaving)) {
+        if (calorieNasMode !== 'conflict') calorieStatus('local', 'Saved on device • NAS save paused', 'Connect to the updated NAS API. Export JSON before resolving unsynced data.');
+        return;
+      }
+      calorieNasPending = true;
+      calorieStatus('busy', 'Saving record changes to NAS…', 'Keep this page open until NAS confirms saving.');
+      clearTimeout(calorieNasTimer);
+      calorieNasTimer = setTimeout(caloriePush,850);
     }
     window.calorieNasChanged = calorieOnLocalChange;
 
+    function calorieChanges(base, local) {
+      const changes = {};
+      const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
+      const set = {}, remove = [];
+      for (const key of Object.keys(local.goals)) if (!equal(base.goals[key],local.goals[key])) set[key] = local.goals[key];
+      for (const key of Object.keys(base.goals)) if (!Object.hasOwn(local.goals,key)) remove.push(key);
+      if (Object.keys(set).length || remove.length) changes.goals = {set,remove};
+      for (const section of ['dailyLogs','weightTimeline','bodyFatTimeline']) {
+        const before = new Map(base[section].map(row=>[String(row.id),row]));
+        const after = new Map(local[section].map(row=>[String(row.id),row]));
+        const upsert = [...after].filter(([id,row])=>!equal(before.get(id),row)).map(([,row])=>row);
+        const deleted = [...before].filter(([id])=>!after.has(id)).map(([,row])=>row.id);
+        if (upsert.length || deleted.length) changes[section] = {upsert,delete:deleted};
+      }
+      return changes;
+    }
+    function calorieRebase(base, remote, local) {
+      const result = structuredClone(remote);
+      const changes = calorieChanges(base,local);
+      const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
+      for (const [section,ops] of Object.entries(changes)) {
+        const before = section === 'goals' ? base.goals : Object.fromEntries(base[section].map(row=>[String(row.id),row]));
+        const target = section === 'goals' ? result.goals : Object.fromEntries(result[section].map(row=>[String(row.id),row]));
+        const updates = section === 'goals' ? Object.entries(ops.set) : ops.upsert.map(row=>[String(row.id),row]);
+        const removals = section === 'goals' ? ops.remove : ops.delete.map(String);
+        for (const [key,value] of [...updates,...removals.map(key=>[key,undefined])]) {
+          if (!equal(target[key],before[key]) && !equal(target[key],value)) throw new Error('An edit made during saving conflicts with NAS. Export device JSON, back up NAS, and reconcile before continuing.');
+          if (value === undefined) delete target[key]; else target[key] = value;
+        }
+        if (section !== 'goals') result[section] = Object.values(target);
+      }
+      return result;
+    }
     async function caloriePush() {
-      if (CALORIE_NAS_READ_ONLY) { clearTimeout(calorieNasTimer); calorieNasPending = false; return; }
-      if (calorieNasSaving || calorieNasBusy || calorieNasMode !== 'busy' || !calorieNasPending || !calorieNasRevision || !calorieNasToken) return;
-      calorieNasSaving = true;
-      calorieNasPending = false;
-      const snapshot = structuredClone(calorieData());
-      const serialized = calorieDataString(snapshot);
-      const baseRevision = calorieNasRevision;
+      if (calorieNasSaving || calorieNasBusy || calorieNasMode !== 'busy' || !calorieNasPending || !calorieNasToken) return;
+      if (calorieNasProtocol !== 2 || !calorieNasRevision || !calorieNasLastSynced || !calorieNasBaseTag) {
+        calorieNasPending=false;
+        return calorieStatus('conflict','NAS save paused','A verified NAS baseline is required. Export device JSON and load NAS before editing.');
+      }
+      calorieNasSaving=true;
+      calorieNasPending=false;
+      const snapshot=structuredClone(calorieData());
       try {
-        // Never adopt a fresh revision and attach an older device snapshot to it.
-        const remote = await calorieRequest('GET');
-        if (!calorieValidData(remote.store) || remote.revision !== baseRevision ||
-            calorieDataString(remote.store) !== calorieNasLastSynced) {
-          const error = new Error('NAS differs from the last synchronized copy. No device upload was sent. Back up both copies and load NAS or reconcile changes.');
-          error.status = 409;
-          throw error;
-        }
-        const result = await calorieRequest('PUT', {revision:baseRevision, store:snapshot});
-        calorieNasRevision = result.revision;
-        calorieNasLastSynced = serialized;
-        calorieNasDirty = calorieGetLocalData() !== serialized;
-        calorieWriteMeta();
-        if (calorieNasDirty) {
-          calorieNasPending = true;
-          calorieStatus('busy', '⏳ New changes waiting to save…', 'Finishing the next NAS update.');
-        } else {
-          calorieRecordSynced(snapshot, result.revision);
-        }
-      } catch (e) {
+        const base=JSON.parse(calorieNasLastSynced);
+        const changes=calorieChanges(base,snapshot);
+        if (!Object.keys(changes).length) return calorieRecordSynced(base,calorieNasRevision,calorieNasBaseTag);
+        const result=await calorieRequest('PUT',{protocol:2,revision:calorieNasRevision,baseTag:calorieNasBaseTag,changes});
+        if (result.protocol !== 2 || !calorieValidData(result.store)) throw new Error('Unexpected NAS response. Auto-save paused; check NAS before retrying.');
+        // Keep edits made during the request without discarding records merged from another device.
+        const rebased=calorieRebase(snapshot,result.store,calorieData());
+        calorieSetData(rebased);
+        calorieRecordSynced(result.store,result.revision,result.baseTag);
+        if (calorieGetLocalData() !== calorieNasLastSynced) calorieOnLocalChange();
+      } catch(e) {
         clearTimeout(calorieNasTimer);
-        calorieNasPending = false;
-        calorieNasDirty = true;
+        calorieNasPending=false;
+        calorieNasDirty=true;
         calorieWriteMeta();
-        calorieStatus(e.status === 409 ? 'conflict' : 'offline',
-          e.status === 409 ? '🛑 NAS changed on another device • auto-save paused' : '⚠️ NAS save failed • local data safe',
-          (e.message || 'Connection failed') + ' Export JSON before resolving.');
+        calorieStatus('conflict','NAS save paused • device edits preserved',e.message+' Export device JSON and back up NAS before resolving.');
       } finally {
-        calorieNasSaving = false;
-        if (calorieNasPending && calorieNasMode === 'busy') {
-          clearTimeout(calorieNasTimer);
-          calorieNasTimer = setTimeout(caloriePush, 250);
+        calorieNasSaving=false;
+        if (calorieNasPending && calorieNasMode==='busy') {
+          clearTimeout(calorieNasTimer);calorieNasTimer=setTimeout(caloriePush,250);
         }
       }
     }
@@ -2207,25 +2236,26 @@
       if (!auto) calorieStatus('busy','⏳ Checking private NAS storage…','Reading latest Calorie Tracker revision.');
       try {
         const reply = await calorieRequest('GET');
+        calorieNasProtocol = reply.protocol === 2 ? 2 : 1;
         calorieNasRemote = reply.store;
         const revision = reply.revision;
         const local = calorieGetLocalData();
         if (!calorieNasRemote) {
           calorieNasRevision = revision;
           calorieStatus('conflict', '☁️ NAS is empty • local entries untouched',
-            'NAS is empty. Uploads are disabled; export your device JSON backup and inspect the NAS API before restoring records.');
+            'NAS is empty. Export device JSON, then use Save device changes to NAS for the first upload.');
         } else if (!calorieValidData(calorieNasRemote)) {
           calorieStatus('conflict', '🛑 Invalid NAS data • auto-save paused', 'Do not overwrite it. Investigate the API or restore a NAS backup.');
         } else {
           const remoteString = calorieDataString(calorieNasRemote);
           if (local === remoteString) {
-            calorieRecordSynced(calorieNasRemote, revision);
+            calorieRecordSynced(calorieNasRemote, revision, reply.baseTag);
           } else if (!calorieNasDirty && calorieNasLastSynced && local === calorieNasLastSynced) {
             // Previously synced device: safe to accept newer server data.
             calorieSetData(calorieNasRemote);
-            calorieRecordSynced(calorieNasRemote, revision);
+            calorieRecordSynced(calorieNasRemote, revision, reply.baseTag);
           } else {
-            calorieNasRevision = revision;
+            // Preserve the revision paired with lastSynced; never rebase old edits onto a fresh revision.
             calorieStatus('conflict', '⚠️ Device and NAS contain different data • auto-save paused',
               `NAS: ${calorieCount(calorieNasRemote)}. This device: ${calorieCount(calorieData())}. Export local JSON before deciding which copy to keep.`);
           }
@@ -2245,6 +2275,7 @@
       try {
         // Fresh read, never rely on an old stored remote snapshot.
         const reply = await calorieRequest('GET');
+        calorieNasProtocol = reply.protocol === 2 ? 2 : 1;
         if (!calorieValidData(reply.store)) throw new Error('NAS is empty or its data is invalid.');
         if (calorieGetLocalData() !== calorieDataString(reply.store)) {
           if (!confirm(`This replaces the data currently shown on THIS DEVICE with the NAS copy (${calorieCount(reply.store)}).\n\nExport JSON Backup first if you have any records not on NAS. Continue?`)) return;
@@ -2253,50 +2284,40 @@
         clearTimeout(calorieNasTimer);
         calorieNasRemote = reply.store;
         calorieSetData(reply.store);
-        calorieRecordSynced(reply.store, reply.revision);
+        calorieRecordSynced(reply.store, reply.revision, reply.baseTag);
         showToast('Loaded and synchronized the latest NAS Calorie Tracker data.');
       } catch (e) { calorieStatus('offline','⚠️ Cannot load NAS data',e.message); }
       finally { calorieNasBusy = false; }
     }
 
     async function calorieUploadNas() {
-      if (CALORIE_NAS_READ_ONLY) return showToast('NAS uploads are disabled. Export your device JSON backup instead.');
-      if (!calorieNasToken) return calorieStatus('local','⚠️ Token missing','Open NAS Setup first.');
+      if (!calorieNasToken) return showToast('Connect to NAS first.');
       if (calorieNasSaving || calorieNasBusy) return showToast('Wait for the current NAS operation.');
-      clearTimeout(calorieNasTimer);
-      calorieNasPending = false;
-      calorieNasBusy = true;
+      clearTimeout(calorieNasTimer);calorieNasPending=false;calorieNasBusy=true;
       try {
-        const reply = await calorieRequest('GET');
-        const snapshot = structuredClone(calorieData());
+        const reply=await calorieRequest('GET');
+        calorieNasProtocol=reply.protocol===2?2:1;
+        if (calorieNasProtocol!==2) throw new Error('Install the updated calorie-api.php first. No upload was sent.');
         if (reply.store) {
-          if (calorieValidData(reply.store) && calorieDataString(reply.store) === calorieGetLocalData()) {
-            calorieRecordSynced(reply.store, reply.revision);
-            return showToast('Already synchronized.');
-          }
-          throw new Error('NAS already has different Calorie Tracker data. Upload blocked to prevent data loss. Export both copies and reconcile them before replacing NAS records.');
+          if (calorieDataString(reply.store)===calorieGetLocalData()) return calorieRecordSynced(reply.store,reply.revision,reply.baseTag);
+          if (!calorieNasLastSynced || !calorieNasRevision || !calorieNasBaseTag) throw new Error('Device has no synced baseline. Export device JSON and load NAS before editing. Whole-dataset replacement is disabled.');
+          if (!confirm('Save only device changes since its last NAS sync? Other NAS records will be preserved; conflicting edits will be rejected.')) return;
+          calorieNasBusy=false;calorieNasPending=true;calorieNasMode='busy';
+          return await caloriePush();
         }
-        if (!confirm(`First upload to your EMPTY calorie NAS database:\n${calorieCount(snapshot)}\n\nHave you exported your device JSON backup? Upload this device now?`)) return;
-        calorieNasSaving = true;
-        calorieStatus('busy','⏳ Uploading your Calorie Tracker data…','Keep this page open.');
-        const snapshotText = calorieDataString(snapshot);
-        const saved = await calorieRequest('PUT', {revision:reply.revision,store:snapshot});
-        calorieNasRevision = saved.revision;
-        calorieNasLastSynced = snapshotText;
-        calorieNasDirty = calorieGetLocalData() !== snapshotText;
-        calorieWriteMeta();
-        if (calorieNasDirty) {
-          calorieNasPending = true;
-          calorieStatus('busy','⏳ NAS uploaded • saving newer edits…','');
-        } else calorieRecordSynced(snapshot,saved.revision);
-        showToast('Calorie records uploaded successfully. NAS auto-save enabled.');
-      } catch (e) {
-        calorieStatus(e.status === 409 ? 'conflict' : 'offline', '⚠️ NAS upload not completed', e.message);
-      } finally {
-        calorieNasSaving = false;
-        calorieNasBusy = false;
-        if (calorieNasPending) setTimeout(caloriePush,200);
-      }
+        const snapshot=structuredClone(calorieData());
+        if (!confirm('NAS is empty. After exporting a device JSON backup, initialize it with this device data?')) return;
+        calorieNasSaving=true;
+        const saved=await calorieRequest('PUT',{protocol:2,revision:reply.revision,initialize:snapshot});
+        if (saved.protocol!==2 || !calorieValidData(saved.store)) throw new Error('Unexpected NAS response.');
+        const rebased=calorieRebase(snapshot,saved.store,calorieData());
+        calorieSetData(rebased);calorieRecordSynced(saved.store,saved.revision,saved.baseTag);
+        if (calorieGetLocalData()!==calorieNasLastSynced) {
+          calorieNasDirty=true;calorieWriteMeta();
+          calorieStatus('conflict','Initial upload saved • newer device edits remain local','Use Save device changes to NAS to save those edits.');
+        }
+      } catch(e) { calorieStatus('conflict','NAS save paused • device data preserved',e.message); }
+      finally {calorieNasSaving=false;calorieNasBusy=false;}
     }
 
     function calorieExportJson() {
@@ -2327,43 +2348,7 @@
       } catch(e){showToast('NAS backup failed: '+e.message);}
     }
     async function calorieForceUploadNas() {
-      if (CALORIE_NAS_READ_ONLY) return showToast('NAS uploads are disabled. Export your device JSON backup instead.');
-      if (!calorieNasToken) return showToast('Connect to your NAS first.');
-      if (calorieNasSaving || calorieNasBusy) return showToast('Wait for the current NAS operation.');
-      const localSnapshot=calorieGetLocalData();
-      if (!calorieLocalBackupSnapshot || calorieLocalBackupSnapshot!==localSnapshot)
-        return showToast('Export JSON Backup for this DEVICE first (after your latest edits).');
-      if (!calorieNasBackupRevision) return showToast('Click Back up NAS copy first.');
-      clearTimeout(calorieNasTimer);
-      calorieNasPending=false;
-      calorieNasBusy=true;
-      try {
-        const reply=await calorieRequest('GET');
-        if(!calorieValidData(reply.store)) throw new Error('NAS copy is empty/invalid. Force overwrite is disabled.');
-        if(reply.revision!==calorieNasBackupRevision)
-          throw new Error('NAS changed after your backup. Back up NAS copy again before replacing it.');
-        if(calorieDataString(reply.store)===localSnapshot){calorieRecordSynced(reply.store,reply.revision);return showToast('Already synchronized.');}
-        const summary=`Device: ${calorieCount(calorieData())}\nNAS: ${calorieCount(reply.store)}`;
-        if(!confirm('REPLACE ALL NAS CALORIE DATA with THIS DEVICE?\n\n'+summary+
-          '\n\nOnly proceed after reviewing both downloaded JSON backups. NAS records missing from this device will be replaced.')) return;
-        const typed=prompt('Last confirmation: type REPLACE NAS exactly to overwrite the NAS database:');
-        if(typed!=='REPLACE NAS')return showToast('Replacement canceled.');
-        // Re-read after confirmation; if server changed, abort rather than use a new revision.
-        const latest=await calorieRequest('GET');
-        if(latest.revision!==reply.revision)throw new Error('NAS changed during confirmation. No overwrite performed; back up NAS again.');
-        if(calorieGetLocalData()!==localSnapshot)throw new Error('Device changed during confirmation; export another local backup.');
-        calorieNasSaving=true;
-        calorieStatus('busy','⏳ Replacing NAS from reviewed device backup…','Server will keep a private copy of the previous NAS file.');
-        const snapshot=calorieData();
-        const saved=await calorieRequest('PUT',{revision:latest.revision,store:snapshot});
-        calorieNasBackupRevision=null;
-        calorieLocalBackupSnapshot=null;
-        calorieRecordSynced(snapshot,saved.revision);
-        showToast('NAS replaced after both backups and confirmation. Auto-save ON.');
-      }catch(e){
-        calorieNasDirty=true;calorieWriteMeta();
-        calorieStatus('conflict','🛑 Replacement NOT completed',e.message+' Your local data is preserved.');
-      }finally{calorieNasSaving=false;calorieNasBusy=false;}
+      showToast('Whole-NAS replacement is disabled. Save record changes or load NAS after exporting device JSON.');
     }
     async function calorieImportJson(file) {
       try {
@@ -2392,6 +2377,7 @@
       calorieNasMeta = calorieReadMeta();
       calorieNasLastSynced = calorieNasMeta.lastSynced || '';
       calorieNasRevision = calorieNasMeta.revision || null;
+      calorieNasBaseTag = calorieNasMeta.baseTag || '';
       calorieNasDirty = calorieNasMeta.dirty === true;
       try { calorieNasToken = localStorage.getItem(CALORIE_NAS_TOKEN_KEY) || ''; } catch (_) {}
       document.getElementById('calorieNasSetupBtn').addEventListener('click', () => {
@@ -2444,7 +2430,8 @@
         }
         clearTimeout(calorieNasTimer);
         calorieNasPending = false;
-        calorieStatus('conflict', 'Reset is local only • NAS auto-save paused', 'Load NAS to restore its records. NAS uploads are disabled in this version.');
+        calorieNasLastSynced=''; calorieNasRevision=null; calorieWriteMeta();
+        calorieStatus('conflict', 'Reset is local only • NAS auto-save paused', 'Load NAS to restore its records. Reset stays local. Export device JSON, then load NAS to resume syncing.');
       },true);
     }
     window.addEventListener('DOMContentLoaded',calorieInitNas);
