@@ -1,0 +1,2422 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calorie Tracker — NAS Sync</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b131e;
+      color: #f1f5f9;
+    }
+    .sheet-teal {
+      background-color: #2c4c54;
+    }
+    .sheet-teal-header {
+      background-color: #244047;
+    }
+    #sectionSheet1, #sectionSheet2, #sectionSheet3, #sectionSheet4 { scroll-margin-top: 9rem; }
+    .navy-card {
+      background-color: #0f1c2e;
+      border: 1px solid #1e293b;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-teal-500 selection:text-white">
+  <!-- Header and dashboard navigation -->
+  <header class="sticky top-0 z-30 border-b border-slate-800 bg-[#0b131e]/95 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600/20 border border-teal-500/40 text-teal-300 font-bold text-lg">
+            ⚡
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg font-bold tracking-tight text-white sm:text-xl">Calorie, Macro &amp; Weight Tracker</h1>
+              <span id="stepBadge" class="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-medium text-emerald-300">Active Tracker • Fresh Start</span>
+            </div>
+            <p class="text-xs text-slate-400">Nutrition command center &bull; Daily logs, weekly energy balance, and weight trends</p>
+          </div>
+        </div>
+
+        <!-- View Mode Tabs -->
+        <div class="flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-900/90 p-1 border border-slate-800">
+          <button id="tabBtnAll" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition bg-teal-600 text-white shadow-sm">
+            Full Dashboard (All 4 Sections)
+          </button>
+          <button id="tabBtnStep1" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-300 hover:text-white hover:bg-slate-800">
+            1. Daily Log &amp; Goals
+          </button>
+          <button id="tabBtnStep2" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-300 hover:text-white hover:bg-slate-800">
+            2. Macros Pie Chart
+          </button>
+          <button id="tabBtnStep3" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-300 hover:text-white hover:bg-slate-800">
+            3. Weight Timeline
+          </button>
+          <button id="tabBtnStep4" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-300 hover:text-white hover:bg-slate-800">
+            4. Body Fat Tracker
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+
+  <!-- NAS sync controls (independent from Leadville workout database) -->
+  <section id="calorieNasPanel" class="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
+    <div class="rounded-2xl border border-teal-500/30 bg-slate-900 p-4 shadow-lg space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-sm font-bold text-white">☁️ Calorie Tracker • NAS Synchronization</div>
+          <div id="calorieNasStatus" class="mt-1 text-xs font-semibold text-amber-300" role="status" aria-live="polite">Local-only mode • your browser data is preserved</div>
+          <div id="calorieNasDetail" class="mt-1 text-xs text-slate-400">Use NAS Setup to connect to your private Synology storage. Never load the NAS over unsynced local changes without a backup.</div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="calorieNasSetupBtn" type="button" class="rounded-lg border border-teal-500/40 bg-teal-950 px-3 py-2 text-xs font-bold text-teal-200">🔐 NAS Setup</button>
+          <button id="calorieNasCheckBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Check NAS</button>
+          <button id="calorieNasDownloadBtn" type="button" class="rounded-lg border border-sky-500/40 bg-sky-950 px-3 py-2 text-xs font-bold text-sky-200">↓ Load NAS to device</button>
+          <button id="calorieNasUploadBtn" type="button" class="rounded-lg border border-emerald-500/40 bg-emerald-950 px-3 py-2 text-xs font-bold text-emerald-200">↑ Upload device to NAS</button>
+          <button id="calorieNasBackupBtn" type="button" class="rounded-lg border border-purple-500/50 bg-purple-950 px-3 py-2 text-xs font-bold text-purple-100">↓ Back up NAS copy</button>
+          <button id="calorieNasForceBtn" type="button" class="rounded-lg border border-rose-500/50 bg-rose-950 px-3 py-2 text-xs font-bold text-rose-100">Resolve conflict: replace NAS</button>
+          <button id="calorieExportJsonBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Export JSON Backup</button>
+          <button id="calorieImportJsonBtn" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-white">Import JSON Backup</button>
+          <input id="calorieImportJsonInput" class="hidden" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+      <div id="calorieNasSetupBox" class="hidden rounded-lg border border-slate-700 bg-slate-950 p-3 space-y-3">
+        <label class="block text-xs font-semibold text-slate-300" for="calorieNasToken">Calorie Tracker API token (a NEW secret from calorie-api.php; not your Leadville token)</label>
+        <div class="flex flex-wrap gap-2">
+          <input type="password" id="calorieNasToken" autocomplete="off" placeholder="Paste the calorie-api.php token" class="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white" />
+          <button id="calorieNasConnectBtn" type="button" class="rounded-lg bg-teal-600 px-4 py-2 text-xs font-bold text-white">Save token &amp; connect</button>
+          <button id="calorieNasForgetBtn" type="button" class="rounded-lg border border-rose-600 px-3 py-2 text-xs font-bold text-rose-200">Forget token</button>
+        </div>
+        <p class="text-xs text-slate-400">The token is saved in this browser's local storage for convenience. Use only on trusted devices. Each website address (home IP and Tailscale IP) needs its own connection. Keep the website private; HTTP over home Wi-Fi is not HTTPS.</p>
+      </div>
+    </div>
+  </section>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <!-- Toast Notification -->
+    <div id="toastBanner" class="hidden rounded-xl border border-teal-500/40 bg-teal-950/80 px-4 py-3 text-sm text-teal-200 flex items-center justify-between">
+      <span id="toastMessage">Saved!</span>
+      <button id="closeToastBtn" type="button" class="text-xs font-semibold text-teal-300 hover:text-white">Dismiss</button>
+    </div>
+
+    <div id="deleteUndoBanner" role="status" class="hidden rounded-xl border border-amber-500/40 bg-slate-900 px-4 py-3 text-sm text-amber-100 flex items-center justify-between gap-3">
+      <span id="deleteUndoMessage"></span>
+      <button id="undoDeleteBtn" type="button" class="rounded-lg border border-amber-400/50 px-3 py-1.5 font-semibold hover:bg-slate-800">Undo deletion</button>
+    </div>
+
+    <!-- Quick jump navigation for the full dashboard. Purely presentational; no saved data changes. -->
+    <nav id="fullDashboardJumpNav" aria-label="Jump to dashboard section" class="rounded-xl border border-slate-800 bg-slate-900/70 p-3 flex flex-wrap items-center gap-2">
+      <span class="text-xs font-semibold text-slate-400 mr-1">Jump to:</span>
+      <button type="button" data-jump-section="sectionSheet1" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-slate-800">Daily Log &amp; Goals</button>
+      <button type="button" data-jump-section="sectionSheet2" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-slate-800">Macros</button>
+      <button type="button" data-jump-section="sectionSheet3" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-slate-800">Weight</button>
+      <button type="button" data-jump-section="sectionSheet4" class="rounded-lg border border-teal-600/60 bg-teal-950/60 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-teal-900/50">Body Fat</button>
+    </nav>
+
+    <!-- SECTION 1: GOAL & PROGRESS SUMMARY + DAILY LOG TABLE (FROM SCREENSHOT 1) -->
+    <section id="sectionSheet1" class="space-y-6">
+      <!-- Editable Goal Inputs & Live Spreadsheet Summary Grid -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 overflow-hidden shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 bg-slate-900 px-5 py-3.5">
+          <div>
+            <h2 class="text-base font-bold text-white">Goal &amp; Calorie Deficit Dashboard</h2>
+            <p class="text-xs text-slate-400">Edit any starting/goal value below — all 21 metrics from your top spreadsheet block recalculate live.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="exportCsvBtn" type="button" class="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white shadow transition">
+              ⬇ Download CSV (Excel / Sheets)
+            </button>
+            <button id="copyCsvBtn" type="button" class="rounded-lg border border-teal-500/40 bg-teal-950/60 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-teal-900/60 transition">
+              Copy Table for Sheets
+            </button>
+            <button id="resetDemoBtn" type="button" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition">
+              Reset to Spreadsheet Data
+            </button>
+          </div>
+        </div>
+
+        <!-- Visually Appealing Goal & Metric Card Grid -->
+        <div class="p-5 space-y-5">
+          <!-- 4 Highlight Hero Stat Tiles with Gradients -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div class="rounded-xl bg-gradient-to-br from-teal-950/60 to-slate-900 border border-teal-500/30 p-3.5 space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span class="font-medium">Pounds Lost</span>
+                <span class="text-teal-400 text-sm">⚖️</span>
+              </div>
+              <div id="statPoundsLost" class="font-mono text-2xl font-bold text-emerald-400">0.00 lbs</div>
+              <div class="text-[11px] text-slate-400">Weight should be: <span id="statWeightShouldBe" class="font-mono font-semibold text-rose-400">215.00</span></div>
+            </div>
+
+            <div class="rounded-xl bg-gradient-to-br from-cyan-950/60 to-slate-900 border border-cyan-500/30 p-3.5 space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span class="font-medium">Calories Burned</span>
+                <span class="text-cyan-400 text-sm">🔥</span>
+              </div>
+              <div id="statCaloriesBurnedToDate" class="font-mono text-2xl font-bold text-teal-300">0 kcal</div>
+              <div class="text-[11px] text-slate-400">Remaining to goal: <span id="statRemainingCalNeeded" class="font-mono font-semibold text-amber-300">52,500</span></div>
+            </div>
+
+            <div class="rounded-xl bg-gradient-to-br from-sky-950/60 to-slate-900 border border-sky-500/30 p-3.5 space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span class="font-medium">Daily Avg Deficit</span>
+                <span class="text-sky-400 text-sm">⚡</span>
+              </div>
+              <div id="statAvgDailyDeficit" class="font-mono text-2xl font-bold text-sky-300">0 kcal/day</div>
+              <div class="text-[11px] text-slate-400">Needed for target date: <span id="statReqDailyDeficit" class="font-mono font-semibold text-slate-200">288.46</span></div>
+            </div>
+
+            <div class="rounded-xl bg-gradient-to-br from-purple-950/60 to-slate-900 border border-purple-500/30 p-3.5 space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span class="font-medium">Expected Goal Date</span>
+                <span class="text-purple-400 text-sm">📅</span>
+              </div>
+              <div id="statExpectedGoalDate" class="font-mono text-xl font-bold text-amber-300">4/16/2027</div>
+              <div class="text-[11px] text-slate-400">Approx. Body Fat¹: <span id="statEstBodyFat" class="font-mono font-semibold text-teal-300">35.00%</span></div>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-slate-400">¹ Body-fat estimate assumes 75% of weight change is fat; this is not a measurement. Use logged body-fat measurements for comparison. Goal dates and weight changes are projections, not guarantees.</p>
+          <!-- Goal Progress Bar with Gradient & Metric Counter -->
+          <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-4 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">Goal Burn Progress</span>
+                <span class="text-slate-400">(<span id="statCaloriesBurnedToDateCopy" class="text-teal-300 font-mono font-semibold">0</span> of <span id="statTotalCalNeeded" class="text-slate-300 font-mono">52500</span> kcal)</span>
+              </div>
+              <span id="statProgressPct" class="font-bold text-teal-300 font-mono text-sm">0.0%</span>
+            </div>
+            <div class="h-3 w-full rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+              <div id="goalProgressBar" class="h-full bg-gradient-to-r from-teal-500 via-sky-400 to-emerald-400 transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <div class="flex flex-wrap justify-between text-[11px] text-slate-400 pt-0.5">
+              <span>Calories for 1 more lb: <strong id="statCalForNextPound" class="text-slate-200 font-mono">3500</strong> kcal</span>
+              <span>Weight difference vs. expected: <strong id="statWeightDifference" class="text-slate-200 font-mono">0.00</strong> lbs</span>
+              <span>Days counting: <strong id="statDaysCounting" class="text-slate-200 font-mono">0</strong> days</span>
+              <span>Est. days left at avg: <strong id="statDaysToGoalAtAvg" class="text-slate-200 font-mono">0</strong> days</span>
+            </div>
+          </div>
+
+          <!-- 3 Collapsible / Carded Setting Modules -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <!-- Starting & Current Weight Card -->
+            <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3.5 space-y-2.5">
+              <div class="font-bold text-teal-300 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                <span>Weight Milestones</span>
+                <span class="text-slate-500 text-xs">Step 1</span>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label for="inputStartWeight" class="text-slate-300">Starting Weight:</label>
+                  <div class="flex items-center gap-1">
+                    <input id="inputStartWeight" type="number" step="0.1" value="215" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-white focus:border-teal-400 focus:outline-none font-mono" />
+                    <span class="text-slate-500">lbs</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <label for="inputIdealWeight" class="text-slate-300">Ideal Goal Weight:</label>
+                  <div class="flex items-center gap-1">
+                    <input id="inputIdealWeight" type="number" step="0.1" value="200" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-emerald-400 focus:border-teal-400 focus:outline-none font-mono" />
+                    <span class="text-slate-500">lbs</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <label for="inputCurrentWeight" class="text-slate-300">Current Weight:</label>
+                  <div class="flex items-center gap-1">
+                    <input id="inputCurrentWeight" type="number" step="0.1" value="215" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-white focus:border-teal-400 focus:outline-none font-mono" />
+                    <span class="text-slate-500">lbs</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Target Dates & Deficit Goal Card -->
+            <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3.5 space-y-2.5">
+              <div class="font-bold text-sky-300 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                <span>Timeline &amp; Dates</span>
+                <span class="text-slate-500 text-xs">Step 2</span>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label for="inputStartDate" class="text-slate-300">Start Date:</label>
+                  <input id="inputStartDate" type="date" value="2026-10-16" class="rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-white focus:border-teal-400 focus:outline-none font-mono" />
+                </div>
+                <div class="flex items-center justify-between">
+                  <label for="inputGoalDate" class="text-slate-300">Target Goal Date:</label>
+                  <input id="inputGoalDate" type="date" value="2027-04-16" class="rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-amber-300 focus:border-teal-400 focus:outline-none font-mono" />
+                </div>
+                <div class="flex items-center justify-between text-slate-400 pt-0.5">
+                  <span>Avg. Consumed:</span>
+                  <span id="statAvgConsumed" class="font-mono text-white font-semibold">0.00 kcal</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metabolism & Body Fat Card -->
+            <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3.5 space-y-2.5">
+              <div class="font-bold text-amber-300 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                <span>Metabolism &amp; Fat</span>
+                <span class="text-slate-500 text-xs">Step 3</span>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label for="inputDefaultBaseBurn" class="text-slate-300">Standard Daily Base (BMR):</label>
+                  <div class="flex items-center gap-1">
+                    <input id="inputDefaultBaseBurn" type="number" step="50" value="1600" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-white focus:border-teal-400 focus:outline-none font-mono" />
+                    <span class="text-slate-500">kcal</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <label for="inputStartBodyFat" class="text-slate-300">Starting Body Fat:</label>
+                  <div class="flex items-center gap-1">
+                    <input id="inputStartBodyFat" type="number" step="0.1" value="35" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right text-xs font-semibold text-white focus:border-teal-400 focus:outline-none font-mono" />
+                    <span class="text-slate-500">%</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between text-slate-400 pt-0.5">
+                  <span>Avg. Exercise Burn:</span>
+                  <span id="statAvgExerciseBurned" class="font-mono text-white font-semibold">0.00 kcal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Coaching command center: computations derived from existing logs -->
+    <section id="coachingCommandCenter" class="rounded-2xl border border-teal-500/30 bg-slate-900/80 p-5 shadow-xl space-y-4" aria-label="Daily nutrition and weekly deficit command center">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 class="font-bold text-white text-lg">Nutrition Command Center</h2><p class="text-xs text-slate-400">Uses logged calorie balance (an estimate, not a direct measure of fat loss).</p></div>
+        <label class="flex items-center gap-2 text-xs text-slate-300">Weekly deficit target
+          <select id="coachWeeklyGoal" class="rounded-lg border border-slate-600 bg-slate-950 text-white px-2 py-1.5"><option value="3500">3,500 kcal / week</option><option value="5250">5,250 kcal / week</option></select>
+        </label>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><div class="text-slate-400 text-xs">Weekly Deficit Bank</div><div id="coachBanked" class="font-mono text-xl font-bold text-emerald-300">—</div><div id="coachLoggedDays" class="text-xs font-semibold text-emerald-200">0 / 7 days logged</div><div id="coachWeekRange" class="text-xs text-slate-400">Mon – Sun</div></div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><div class="text-slate-400 text-xs">Next Required Daily Deficit</div><div id="coachRequired" class="font-mono text-xl font-bold text-sky-300">—</div><div id="coachDaysLeft" class="text-xs text-slate-400">Remaining days this week</div></div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><div class="text-slate-400 text-xs">Today's Calorie Balance</div><div id="coachTodayNet" class="font-mono text-xl font-bold text-teal-300">—</div><div id="coachTodaySub" class="text-xs text-slate-400">No log for today</div></div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><div class="text-slate-400 text-xs">Protein Today</div><div id="coachProtein" class="font-mono text-xl font-bold text-amber-300">—</div><div id="coachProteinSub" class="text-xs text-slate-400">Daily target</div></div>
+      </div>
+      <div class="rounded-xl bg-slate-950 border border-slate-800 p-3 space-y-2">
+        <div class="flex flex-wrap justify-between gap-2 text-xs"><span id="coachBankDetail" class="text-slate-300">Banked 0 kcal</span><span id="coachRemaining" class="font-bold text-teal-300">Remaining 0 kcal</span></div>
+        <div class="h-3 rounded-full bg-slate-800 overflow-hidden"><div id="coachBankBar" class="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all" style="width:0%"></div></div>
+        <p id="coachBankFootnote" class="text-xs text-slate-400">Calculations use a Monday–Sunday calendar week. Energy balance is an estimate.</p>
+      </div>
+    </section>
+
+      <!-- Quick Add Daily Entry Form -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+          <h3 class="text-sm font-bold text-white">Log a Day (Auto-Calculates Net Gain/Loss &amp; Updates Macros)</h3>
+          <span class="text-xs text-slate-400">Formula: <code class="text-teal-300">Net Gain/Loss = Calories Consumed - Standard Burned - Exercise Burned</code></span>
+        </div>
+        <form id="addDayForm" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 items-end">
+          <div>
+            <label for="logDate" class="block text-[11px] font-medium text-slate-400 mb-1">Date</label>
+            <input id="logDate" type="text" placeholder="M/D/YYYY" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logBase" class="block text-[11px] font-medium text-slate-400 mb-1">Standard Burn</label>
+            <input id="logBase" type="number" value="1600" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logConsumed" class="block text-[11px] font-medium text-slate-400 mb-1">Cal Consumed</label>
+            <input id="logConsumed" type="number" placeholder="2100" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logExercise" class="block text-[11px] font-medium text-slate-400 mb-1">Exercise Burn</label>
+            <input id="logExercise" type="number" placeholder="800" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logProtein" class="block text-[11px] font-medium text-slate-400 mb-1">Protein (g)</label>
+            <input id="logProtein" type="number" placeholder="140" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logCarbs" class="block text-[11px] font-medium text-slate-400 mb-1">Carbs (g)</label>
+            <input id="logCarbs" type="number" placeholder="180" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logFats" class="block text-[11px] font-medium text-slate-400 mb-1">Fats (g)</label>
+            <input id="logFats" type="number" placeholder="55" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <label for="logCaffeine" class="block text-[11px] font-medium text-slate-400 mb-1">Caffeine (mg)</label>
+            <input id="logCaffeine" type="number" placeholder="135" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div>
+            <button type="submit" class="w-full rounded-lg bg-teal-600 hover:bg-teal-500 px-3 py-1.5 text-xs font-bold text-white shadow transition">+ Add Day</button>
+          </div>
+          <div class="col-span-2"><label for="logWeight" class="block text-[11px] font-medium text-slate-400 mb-1">Optional Weight (lbs)</label><input id="logWeight" type="number" step="0.1" min="30" max="800" placeholder="Include weigh-in" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white" /></div>
+          <div class="col-span-2 sm:col-span-4 lg:col-span-5"><label for="logNotes" class="block text-[11px] font-medium text-slate-400 mb-1">Optional Workout / Nutrition Notes</label><input id="logNotes" type="text" maxlength="1000" placeholder="How you trained or felt; meal details..." class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white" /></div>
+          <div class="col-span-2 lg:col-span-9 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs">
+            <span id="macroCalLive" class="font-mono text-teal-200">Macro calories: enter protein, carbs &amp; fats</span>
+            <button id="useMacroCalBtn" type="button" class="rounded-md border border-teal-500/50 px-3 py-1 text-teal-200 hover:bg-teal-900/40">Use Macro Calories</button>
+          </div>
+        </form>
+      </div>
+      <!-- Daily Log Spreadsheet Table -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 overflow-hidden shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 bg-slate-900/90 px-5 py-3">
+          <div class="flex items-center gap-2">
+            <span class="rounded-md bg-teal-500/20 border border-teal-500/40 px-2 py-0.5 text-[11px] font-bold text-teal-300 uppercase">Step 2 Interactive Table</span>
+            <h3 class="text-sm font-bold text-white">Daily Calorie &amp; Macro Log</h3>
+          </div>
+          <p class="text-xs text-slate-400">Click <strong class="text-teal-300">Edit</strong> on any row (like <code class="text-slate-200">1/12/25</code>–<code class="text-slate-200">1/16/25</code>) to fill in missing macros or adjust numbers in place.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="sheet-teal text-[11px] font-bold uppercase tracking-wider text-slate-100 border-b border-slate-700">
+                <th class="py-3 px-3">Date</th>
+                <th class="py-3 px-3 text-right">Standard Calories Burned</th>
+                <th class="py-3 px-3 text-right">Calories Consumed</th>
+                <th class="py-3 px-3 text-right">Calories Burned Through Exercise</th>
+                <th class="py-3 px-3 text-right">Net Gain/Loss</th>
+                <th class="py-3 px-3 text-right">Protein (g)</th>
+                <th class="py-3 px-3 text-right">Carbs (g)</th>
+                <th class="py-3 px-3 text-right">Fats (g)</th>
+                <th class="py-3 px-3 text-right">Caffeine (mg)</th>
+                <th class="py-3 px-3 text-left">Training Load</th>
+                <th class="py-3 px-3 text-left">Notes</th>
+                <th class="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="dailyLogTableBody" class="divide-y divide-slate-800/80 text-xs font-mono">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- STEP 3 FEATURE: "What-If" Goal Pace Simulator -->
+      <div class="rounded-2xl border border-sky-500/30 bg-slate-900/80 p-5 shadow-xl space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-800 pb-3.5">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="rounded-md bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300 uppercase">Step 3 New Feature</span>
+              <h3 class="text-sm font-bold text-white">"What-If" Calorie Deficit &amp; Goal Date Simulator</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Drag the slider or click a preset to see how burning extra calories per day (or eating slightly less) moves up your expected goal date.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button type="button" data-sim-preset="0" class="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-700">Current Pace (+0)</button>
+            <button type="button" data-sim-preset="150" class="rounded-lg border border-sky-500/30 bg-sky-950/60 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-900/60">+150 kcal/day</button>
+            <button type="button" data-sim-preset="300" class="rounded-lg border border-sky-500/30 bg-sky-950/60 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-900/60">+300 kcal/day</button>
+            <button type="button" data-sim-preset="500" class="rounded-lg border border-sky-500/30 bg-sky-950/60 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-900/60">+500 kcal/day</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+          <div class="lg:col-span-5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <label for="simExtraDeficitSlider" class="font-semibold text-slate-200">Extra Daily Calorie Burn / Deficit:</label>
+              <span id="simSliderValueBadge" class="rounded-md bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 font-mono font-bold text-sky-300">+200 kcal/day</span>
+            </div>
+            <input id="simExtraDeficitSlider" type="range" min="-150" max="600" step="25" value="200" class="w-full accent-sky-400 cursor-pointer" />
+            <div class="flex justify-between text-[11px] text-slate-400 font-mono">
+              <span>-150 kcal</span>
+              <span>0 (Current: 303/day)</span>
+              <span>+300 kcal</span>
+              <span>+600 kcal</span>
+            </div>
+          </div>
+
+          <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3.5 space-y-1">
+              <span class="text-slate-400 block">Simulated Daily Deficit</span>
+              <span id="simTotalDeficitStat" class="font-mono text-base font-bold text-white block">503.18 kcal/day</span>
+              <span id="simVsCurrentDeficitNote" class="text-[11px] text-slate-400 block">vs. 303.18 current avg</span>
+            </div>
+            <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3.5 space-y-1">
+              <span class="text-slate-400 block">Simulated Days Left</span>
+              <span id="simDaysLeftStat" class="font-mono text-base font-bold text-sky-300 block">97.7 days</span>
+              <span id="simDaysSavedBadge" class="text-[11px] font-semibold text-emerald-400 block">64.5 days faster!</span>
+            </div>
+            <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3.5 space-y-1">
+              <span class="text-slate-400 block">Simulated Goal Date</span>
+              <span id="simGoalDateStat" class="font-mono text-base font-bold text-emerald-400 block">4/13/2024</span>
+              <span id="simTargetComparisonNote" class="text-[11px] text-slate-400 block">52 days ahead of 6/4 target!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 FEATURE: Weekly Timeframe Macro & Calorie Target Tracker Bar -->
+      <div class="rounded-2xl border border-teal-500/30 bg-slate-900/80 p-5 shadow-xl space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-800 pb-3.5">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="rounded-md bg-teal-500/20 border border-teal-500/40 px-2 py-0.5 text-[11px] font-bold text-teal-300 uppercase">Weekly Timeframe Inspector</span>
+              <h3 class="text-sm font-bold text-white">Weekly Calorie &amp; Macro Target Progress</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Select a 7-day week timeframe to compare your weekly totals and daily averages against your target goals.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="weekNetSummaryBadge" class="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-300">Week Net: -3,213 kcal (-0.92 lbs)</span>
+            <label for="targetDaySelect" class="text-xs font-medium text-slate-300">Inspect Week:</label>
+            <select id="targetDaySelect" class="rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-white focus:border-teal-400 focus:outline-none">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Editable Daily Target Inputs -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex items-center justify-between">
+            <label for="inputTargetCal" class="font-medium text-slate-300">Calorie Target:</label>
+            <input id="inputTargetCal" type="number" step="50" value="2100" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right font-mono font-bold text-white focus:border-teal-400 focus:outline-none" />
+          </div>
+          <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex items-center justify-between">
+            <label for="inputTargetProtein" class="font-medium text-amber-300">Protein Goal (g):</label>
+            <input id="inputTargetProtein" type="number" step="5" value="150" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right font-mono font-bold text-white focus:border-amber-400 focus:outline-none" />
+          </div>
+          <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex items-center justify-between">
+            <label for="inputTargetCarbs" class="font-medium text-lime-300">Carbs Goal (g):</label>
+            <input id="inputTargetCarbs" type="number" step="5" value="200" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right font-mono font-bold text-white focus:border-lime-400 focus:outline-none" />
+          </div>
+          <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex items-center justify-between">
+            <label for="inputTargetFats" class="font-medium text-rose-300">Fats Goal (g):</label>
+            <input id="inputTargetFats" type="number" step="5" value="55" class="w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-right font-mono font-bold text-white focus:border-rose-400 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- 4 Live Progress Bars for Selected Day -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+          <!-- Calorie Bar -->
+          <div class="rounded-xl bg-slate-950/90 border border-slate-800/90 p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-slate-200">Calories Consumed</span>
+              <span id="barCalLabel" class="font-mono font-bold text-teal-300">2062 / 2100 kcal</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div id="barCalFill" class="h-full bg-teal-400 transition-all duration-300" style="width: 98%"></div>
+            </div>
+            <p id="barCalStatus" class="text-[11px] text-slate-400">38 kcal remaining under target</p>
+          </div>
+
+          <!-- Protein Bar -->
+          <div class="rounded-xl bg-slate-950/90 border border-slate-800/90 p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-amber-300">Protein</span>
+              <span id="barProteinLabel" class="font-mono font-bold text-white">130 / 150 g</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div id="barProteinFill" class="h-full bg-[#fdd03b] transition-all duration-300" style="width: 87%"></div>
+            </div>
+            <p id="barProteinStatus" class="text-[11px] text-slate-400">20 g to hit daily protein goal</p>
+          </div>
+
+          <!-- Carbs Bar -->
+          <div class="rounded-xl bg-slate-950/90 border border-slate-800/90 p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-lime-300">Carbs</span>
+              <span id="barCarbsLabel" class="font-mono font-bold text-white">190 / 200 g</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div id="barCarbsFill" class="h-full bg-[#9be564] transition-all duration-300" style="width: 95%"></div>
+            </div>
+            <p id="barCarbsStatus" class="text-[11px] text-slate-400">10 g remaining</p>
+          </div>
+
+          <!-- Fats Bar -->
+          <div class="rounded-xl bg-slate-950/90 border border-slate-800/90 p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-rose-300">Fats</span>
+              <span id="barFatsLabel" class="font-mono font-bold text-white">25 / 55 g</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div id="barFatsFill" class="h-full bg-[#ff686b] transition-all duration-300" style="width: 45%"></div>
+            </div>
+            <p id="barFatsStatus" class="text-[11px] text-slate-400">30 g remaining</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- SECTION 2: MACROS BREAKDOWN & PIE CHART (FROM SCREENSHOT 2) -->
+    <section id="sectionSheet2" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl flex flex-col justify-between space-y-4">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-white">Macros Breakdown</h2>
+            <span class="rounded-full bg-slate-800 px-2.5 py-0.5 text-[11px] text-slate-300">4-4-9 Calorie Formula</span>
+          </div>
+          <p class="text-xs text-slate-400">Automatically averages the grams of Protein, Carbs, and Fats from your logged days and converts them into calories (Protein &amp; Carbs = 4 cal/g, Fats = 9 cal/g).</p>
+        </div>
+
+        <div class="overflow-hidden rounded-xl border border-slate-800">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="bg-slate-950 text-slate-300 border-b border-slate-800">
+                <th class="py-2.5 px-3 text-left font-bold">Macro</th>
+                <th class="py-2.5 px-3 text-right font-bold">% of Cal</th>
+                <th class="py-2.5 px-3 text-right font-bold">AVG Grams</th>
+                <th class="py-2.5 px-3 text-right font-bold">Calories</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 font-mono">
+              <tr class="bg-slate-900/50">
+                <td class="py-2.5 px-3 font-sans font-semibold text-amber-300 flex items-center gap-2">
+                  <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#fdd03b]"></span>Protein
+                </td>
+                <td id="macroProteinPct" class="py-2.5 px-3 text-right font-bold text-white">28.96%</td>
+                <td id="macroProteinGrams" class="py-2.5 px-3 text-right text-slate-200">128.33</td>
+                <td id="macroProteinCal" class="py-2.5 px-3 text-right text-slate-200">513.33</td>
+              </tr>
+              <tr class="bg-slate-900/50">
+                <td class="py-2.5 px-3 font-sans font-semibold text-lime-300 flex items-center gap-2">
+                  <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#9be564]"></span>Carbs
+                </td>
+                <td id="macroCarbsPct" class="py-2.5 px-3 text-right font-bold text-white">45.48%</td>
+                <td id="macroCarbsGrams" class="py-2.5 px-3 text-right text-slate-200">201.50</td>
+                <td id="macroCarbsCal" class="py-2.5 px-3 text-right text-slate-200">806.00</td>
+              </tr>
+              <tr class="bg-slate-900/50">
+                <td class="py-2.5 px-3 font-sans font-semibold text-rose-300 flex items-center gap-2">
+                  <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#ff686b]"></span>Fats
+                </td>
+                <td id="macroFatsPct" class="py-2.5 px-3 text-right font-bold text-white">25.56%</td>
+                <td id="macroFatsGrams" class="py-2.5 px-3 text-right text-slate-200">50.33</td>
+                <td id="macroFatsCal" class="py-2.5 px-3 text-right text-slate-200">453.00</td>
+              </tr>
+              <tr class="bg-slate-950 font-bold text-white">
+                <td class="py-2.5 px-3 font-sans">Total Macro Calories</td>
+                <td class="py-2.5 px-3 text-right">100.0%</td>
+                <td id="macroDaysCountNote" class="py-2.5 px-3 text-right text-[11px] font-sans font-normal text-slate-400">6 days w/ macros</td>
+                <td id="macroTotalCal" class="py-2.5 px-3 text-right text-teal-300">1,772.33</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Navy Pie Chart Card matching Screenshot 2 -->
+      <div class="lg:col-span-7 rounded-2xl navy-card p-5 shadow-xl flex flex-col justify-between">
+        <div class="text-center mb-2">
+          <h3 class="text-lg font-bold text-white tracking-wide">Macros</h3>
+          <p class="text-xs text-slate-400">Live calorie distribution across Protein, Carbs &amp; Fats</p>
+        </div>
+        <div class="relative h-72 w-full">
+          <canvas id="macrosPieChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: WEIGHT TIMELINE & TRENDLINE (FROM SCREENSHOT 3) -->
+    <section id="sectionSheet3" class="rounded-2xl navy-card p-5 shadow-xl space-y-5">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-white">Weight Timeline</h2>
+          <p class="text-xs text-slate-400">Your logged weigh-ins, with a <span class="text-sky-400 font-semibold">weight trend</span> calculated from your entries and a 7-day rolling mean. The trend appears after two dated weigh-ins.</p>
+        </div>
+        <form id="addWeightForm" class="flex flex-wrap items-center gap-2">
+          <input id="weightDateInput" type="text" placeholder="M/D/YYYY" required class="w-32 rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none" />
+          <input id="weightValInput" type="number" step="0.1" placeholder="Weight (lbs)" value="219.8" required class="w-28 rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none" />
+          <button type="submit" class="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-xs font-bold text-white shadow transition">
+            + Log Weigh-In
+          </button>
+        </form>
+      </div>
+
+      <div class="relative h-80 w-full">
+        <canvas id="weightTimelineChart"></canvas>
+      </div>
+
+      <p id="weightProjectionNote" class="text-xs text-amber-200" role="status"></p>
+      <!-- Compact Weigh-in History Pills -->
+      <div class="border-t border-slate-800/80 pt-3">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+          <span>Logged Weigh-Ins (<span id="weightCountBadge">0</span> points &bull; click × on any chip to remove)</span>
+          <span id="weightTrendSummary" class="font-semibold text-sky-400">Log weigh-ins to see your change</span>
+        </div>
+        <div id="weightChipsContainer" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: BODY FAT TRACKER (NEW TAB FEATURE) -->
+    <section id="sectionSheet4" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Body Fat Log & Calculator Form -->
+        <div class="lg:col-span-5 rounded-2xl navy-card p-5 shadow-xl space-y-5">
+          <div class="border-b border-slate-800 pb-3">
+            <h2 class="text-base font-bold text-white">Body Fat &amp; Composition Calculator</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Log your measured body fat percentage and weight to track body composition.</p>
+          </div>
+
+          <!-- Quick Log Form -->
+          <form id="addBodyFatForm" class="space-y-3 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="bfDateInput" class="block text-slate-400 mb-1">Date</label>
+                <input id="bfDateInput" type="text" placeholder="M/D/YYYY" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none" />
+              </div>
+              <div>
+                <label for="bfPercentInput" class="block text-slate-400 mb-1">Body Fat (%)</label>
+                <input id="bfPercentInput" type="number" step="0.1" placeholder="35.0" value="35.0" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs font-mono font-bold text-white focus:border-teal-400 focus:outline-none" />
+              </div>
+            </div>
+            <div>
+              <label for="bfWeightInput" class="block text-slate-400 mb-1">Weight on that day (lbs)</label>
+              <input id="bfWeightInput" type="number" step="0.1" placeholder="215.0" value="215.0" required class="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:border-teal-400 focus:outline-none font-mono" />
+            </div>
+            <button type="submit" class="w-full rounded-lg bg-teal-600 hover:bg-teal-500 py-2 text-xs font-bold text-white shadow transition">
+              + Log Body Fat Entry
+            </button>
+          </form>
+
+          <!-- Body Composition Breakdown Card -->
+          <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+            <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3 space-y-1">
+              <span class="text-slate-400 font-sans block text-[11px]">Fat Mass</span>
+              <span id="bfFatMassVal" class="text-base font-bold text-rose-400 block">75.25 lbs</span>
+              <span class="text-[10px] text-slate-500 font-sans block">Weight × (Body Fat %)</span>
+            </div>
+            <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3 space-y-1">
+              <span class="text-slate-400 font-sans block text-[11px]">Lean Body Mass</span>
+              <span id="bfLeanMassVal" class="text-base font-bold text-emerald-400 block">139.75 lbs</span>
+              <span class="text-[10px] text-slate-500 font-sans block">Muscle, bone &amp; water</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Body Fat Line Graph Card -->
+        <div class="lg:col-span-7 rounded-2xl navy-card p-5 shadow-xl flex flex-col justify-between space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-white">Body Fat % Timeline</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Track changes in body fat percentage over time as you hit your calorie deficits.</p>
+            </div>
+            <span id="bfLatestSummaryBadge" class="rounded-lg bg-teal-500/10 border border-teal-500/30 px-2.5 py-1 text-xs font-mono font-semibold text-teal-300">Current: 35.0%</span>
+          </div>
+
+          <div class="relative h-72 w-full">
+            <canvas id="bodyFatTimelineChart"></canvas>
+          </div>
+
+          <p id="bodyFatProjectionNote" class="text-xs text-amber-200" role="status"></p>
+          <!-- Logged Body Fat Chips -->
+          <div class="border-t border-slate-800/80 pt-3">
+            <div class="text-xs text-slate-400 mb-2">Logged Body Fat Entries (<span id="bfCountBadge">1</span> entries):</div>
+            <div id="bfChipsContainer" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // --- INITIAL SPREADSHEET DATA (EXACT MATCH TO USER SCREENSHOTS) ---
+    const DEFAULT_GOALS = {
+      startDate: '2026-10-16',
+      goalDate: '2027-04-16',
+      startWeight: 215,
+      idealWeight: 200,
+      currentWeight: 215,
+      startBodyFat: 35,
+      defaultBaseBurn: 1600,
+      targetCal: 2100,
+      targetProtein: 150,
+      targetCarbs: 200,
+      targetFats: 55
+    };
+
+    const DEFAULT_DAILY_LOGS = [
+      { id: 1, date: '10/16/26', base: 1600, consumed: 2050, exercise: 750, protein: 145, carbs: 185, fats: 50, caffeine: 135 }
+    ];
+
+    const DEFAULT_WEIGHT_TIMELINE = [
+      { id: 101, date: '10/16/26', weight: 215.0 }
+    ];
+
+    const DEFAULT_BODY_FAT_TIMELINE = [
+      { id: 201, date: '10/16/26', bodyFat: 35.0, weight: 215.0 }
+    ];
+
+    let state = {
+      goals: JSON.parse(JSON.stringify(DEFAULT_GOALS)),
+      dailyLogs: JSON.parse(JSON.stringify(DEFAULT_DAILY_LOGS)),
+      weightTimeline: JSON.parse(JSON.stringify(DEFAULT_WEIGHT_TIMELINE)),
+      bodyFatTimeline: JSON.parse(JSON.stringify(DEFAULT_BODY_FAT_TIMELINE)),
+      selectedDayId: 'week_0'
+    };
+    let editingRowId = null;
+    let simExtraDeficit = 200;
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem('calorie_macro_weight_app_v2');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.goals && Array.isArray(parsed.dailyLogs) && Array.isArray(parsed.weightTimeline)) {
+            state = parsed;
+            state.bodyFatTimeline = Array.isArray(parsed.bodyFatTimeline) ? parsed.bodyFatTimeline : JSON.parse(JSON.stringify(DEFAULT_BODY_FAT_TIMELINE));
+            state.goals.targetCal = state.goals.targetCal || 2100;
+            state.goals.targetProtein = state.goals.targetProtein || 150;
+            state.goals.targetCarbs = state.goals.targetCarbs || 200;
+            state.goals.targetFats = state.goals.targetFats || 55;
+            if (!state.selectedDayId || typeof state.selectedDayId === 'number') {
+              state.selectedDayId = 'week_0';
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore storage errors in restricted iframe
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('calorie_macro_weight_app_v2', JSON.stringify(state));
+        if (window.calorieNasChanged) window.calorieNasChanged();
+      } catch (err) {
+        // Ignore storage errors
+      }
+    }
+
+    function showToast(msg) {
+      const banner = document.getElementById('toastBanner');
+      const text = document.getElementById('toastMessage');
+      text.textContent = msg;
+      banner.classList.remove('hidden');
+    }
+
+    // Undo restores only the removed record, preserving subsequent edits.
+    const deletedEntries = [];
+    function renderDeleteUndo() {
+      // Replaced datasets (reset/import/sync) invalidate their old undo records.
+      while (deletedEntries.length && state[deletedEntries.at(-1).key] !== deletedEntries.at(-1).collection) deletedEntries.pop();
+      const last = deletedEntries.at(-1);
+      document.getElementById('deleteUndoBanner').classList.toggle('hidden', !last);
+      document.getElementById('deleteUndoMessage').textContent = last ? `Removed ${last.label} for ${last.entry.date}.` : '';
+    }
+    function deleteEntryWithUndo(key, id, label) {
+      const collection = state[key];
+      const index = collection.findIndex(entry => entry.id === id);
+      if (index < 0) return;
+      const [entry] = collection.splice(index, 1);
+      deletedEntries.push({key, collection, index, entry, label});
+      saveState();
+      renderAll();
+      renderDeleteUndo();
+    }
+    function undoDeletedEntry() {
+      renderDeleteUndo();
+      const last = deletedEntries.pop();
+      if (!last) return;
+      if (!last.collection.some(entry => entry.id === last.entry.id)) {
+        last.collection.splice(Math.min(last.index, last.collection.length), 0, last.entry);
+        saveState();
+        renderAll();
+        showToast(`Restored ${last.label} for ${last.entry.date}.`);
+      }
+      renderDeleteUndo();
+    }
+
+    // --- CHART INSTANCES ---
+    let macrosChartInstance = null;
+    let weightChartInstance = null;
+    let bodyFatChartInstance = null;
+
+    function formatShortDate(dateObj) {
+      const m = dateObj.getMonth() + 1;
+      const d = dateObj.getDate();
+      const y = dateObj.getFullYear();
+      return `${m}/${d}/${y}`;
+    }
+
+    // Parse both the app's historical M/D/YY dates and ISO yyyy-mm-dd.
+    function parseTrackerDate(value) {
+      if (!value) return null;
+      const t = String(value).trim();
+      const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+      const us = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(t);
+      let y, m, d;
+      if (iso) { y=+iso[1]; m=+iso[2]; d=+iso[3]; }
+      else if (us) { m=+us[1]; d=+us[2]; y=+us[3]; if (y<100) y+=y>=70?1900:2000; }
+      else return null;
+      const date = new Date(y,m-1,d);
+      return date.getFullYear()===y && date.getMonth()===m-1 && date.getDate()===d ? date : null;
+    }
+    function trackerDayKey(date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
+    function addCalendarDays(date, n) { const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()+n); return d; }
+    function escapeHtml(input) { return String(input).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function classifyTrainingDay(kcal) {
+      const n=Number(kcal)||0;
+      if(n>=800) return '<span class="rounded bg-orange-900/50 text-orange-200 px-2 py-1">Big Engine</span>';
+      if(n>=400) return '<span class="rounded bg-blue-900/50 text-blue-200 px-2 py-1">Training</span>';
+      return '<span class="rounded bg-purple-900/50 text-purple-200 px-2 py-1">Recovery / Low Burn</span>';
+    }
+    function renderCommandCenter() {
+      const today=new Date();const todayKey=trackerDayKey(today);
+      const dayMap=new Map();
+      for(const row of state.dailyLogs){const dt=parseTrackerDate(row.date); if(dt) dayMap.set(trackerDayKey(dt),row);}
+      const todayLog=dayMap.get(todayKey);
+      const net=todayLog?Number(todayLog.consumed||0)-Number(todayLog.base||0)-Number(todayLog.exercise||0):null;
+      document.getElementById('coachTodayNet').textContent=net===null?'Not logged':`${net>0?'+':''}${Math.round(net).toLocaleString()} kcal`;
+      document.getElementById('coachTodaySub').textContent=net===null?'No entry for today':net<=0?'Estimated daily deficit':'Estimated daily surplus';
+      const protein=todayLog&&todayLog.protein!==null&&todayLog.protein!==''?Number(todayLog.protein):null;
+      document.getElementById('coachProtein').textContent=protein===null?'Not logged':`${Math.round(protein)} g`;
+      document.getElementById('coachProteinSub').textContent=`Target: ${state.goals.targetProtein||150} g`;
+      const start=addCalendarDays(today,-((today.getDay()+6)%7));const end=addCalendarDays(start,6);
+      let bank=0, loggedDays=0;
+      for(let d=new Date(start);d<=end;d=addCalendarDays(d,1)){
+        const row=dayMap.get(trackerDayKey(d));
+        if(row){bank+=Number(row.base||0)+Number(row.exercise||0)-Number(row.consumed||0);loggedDays++;}
+      }
+      const goal=Number(state.goals.weeklyDeficitTarget)===3500?3500:5250;
+      const remaining=Math.max(0,goal-bank);
+      const daysRemaining=7-((today.getDay()+6)%7)-(todayLog?1:0);
+      document.getElementById('coachWeeklyGoal').value=String(goal);
+      document.getElementById('coachBanked').textContent=`${Math.round(bank).toLocaleString()} kcal`;
+      document.getElementById('coachLoggedDays').textContent=`${loggedDays} / 7 days logged`;
+      document.getElementById('coachWeekRange').textContent=`${formatShortDate(start)} – ${formatShortDate(end)}`;
+      document.getElementById('coachRemaining').textContent=`Remaining: ${Math.round(remaining).toLocaleString()} kcal`;
+      document.getElementById('coachBankDetail').textContent=`Banked ${Math.round(bank).toLocaleString()} / ${goal.toLocaleString()} kcal (${loggedDays} logged days)`;
+      document.getElementById('coachBankBar').style.width=`${Math.max(0,Math.min(100,100*bank/goal))}%`;
+      document.getElementById('coachDaysLeft').textContent=`${daysRemaining} unlogged calendar day(s) remain this week`;
+      document.getElementById('coachRequired').textContent=remaining===0?'Target met':daysRemaining>0?`${Math.ceil(remaining/daysRemaining).toLocaleString()} kcal/day`:'Week finished';
+      document.getElementById('coachBankFootnote').textContent=daysRemaining===0&&remaining>0?'Weekly target not met; avoid compensating with extreme restriction.':
+       'Estimated energy balance = base + exercise − food. Check that base burn and exercise burn do not overlap.';
+    }
+    function updateLiveMacroCalories() {
+      const names=['logProtein','logCarbs','logFats'];
+      const vals=names.map(id=>document.getElementById(id).value);
+      const status=document.getElementById('macroCalLive');
+      if(vals.some(v=>v==='')){status.textContent='Macro calories: enter protein, carbs & fats';status.className='font-mono text-teal-200';return null;}
+      const total=Math.round(4*Number(vals[0])+4*Number(vals[1])+9*Number(vals[2]));
+      const food=document.getElementById('logConsumed').value;
+      const delta=food===''?null:Number(food)-total;
+      const warning=delta!==null&&Math.abs(delta)>Math.max(100,total*0.10);
+      status.textContent=`4P + 4C + 9F = ${total.toLocaleString()} kcal${delta===null?'':` · food – macros: ${delta>0?'+':''}${Math.round(delta)} kcal`}${warning?' ⚠ Review discrepancy':''}`;
+      status.className=`font-mono ${warning?'text-amber-300':'text-teal-200'}`;
+      return total;
+    }
+
+    // --- RENDER & RECALCULATE EVERYTHING ---
+    function renderAll() {
+      renderDeleteUndo();
+      const g = state.goals;
+      const logs = state.dailyLogs;
+      const daysCounting = logs.length;
+      renderCommandCenter();
+
+      // Sync goal inputs
+      document.getElementById('inputStartDate').value = g.startDate;
+      document.getElementById('inputGoalDate').value = g.goalDate;
+      document.getElementById('inputStartWeight').value = g.startWeight;
+      document.getElementById('inputIdealWeight').value = g.idealWeight;
+      document.getElementById('inputCurrentWeight').value = g.currentWeight;
+      document.getElementById('inputStartBodyFat').value = g.startBodyFat;
+      document.getElementById('inputDefaultBaseBurn').value = g.defaultBaseBurn;
+
+      // 1. Daily Logs & Top Dashboard Math
+      let totalConsumed = 0;
+      let totalExercise = 0;
+      let totalNetGainLoss = 0;
+
+      const tbody = document.getElementById('dailyLogTableBody');
+      tbody.innerHTML = '';
+
+      logs.forEach((row) => {
+        const net = row.consumed - row.base - row.exercise;
+        totalConsumed += row.consumed;
+        totalExercise += row.exercise;
+        totalNetGainLoss += net;
+
+        const tr = document.createElement('tr');
+        const isEditing = editingRowId === row.id;
+        tr.className = isEditing ? 'bg-teal-950/40 transition' : 'hover:bg-slate-800/50 transition';
+        const netColor = net <= 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-bold';
+
+        if (isEditing) {
+          tr.innerHTML = `
+            <td class="py-2 px-2"><input id="editDate_${row.id}" type="text" value="${escapeHtml(row.date)}" class="w-20 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editBase_${row.id}" type="number" value="${row.base}" class="w-20 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editConsumed_${row.id}" type="number" value="${row.consumed}" class="w-20 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editExercise_${row.id}" type="number" value="${row.exercise}" class="w-20 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-3 text-right ${netColor}">${net}</td>
+            <td class="py-2 px-2 text-right"><input id="editProtein_${row.id}" type="number" placeholder="—" value="${row.protein !== null && row.protein !== '' ? row.protein : ''}" class="w-16 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editCarbs_${row.id}" type="number" placeholder="—" value="${row.carbs !== null && row.carbs !== '' ? row.carbs : ''}" class="w-16 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editFats_${row.id}" type="number" placeholder="—" value="${row.fats !== null && row.fats !== '' ? row.fats : ''}" class="w-16 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-right"><input id="editCaffeine_${row.id}" type="number" placeholder="—" value="${row.caffeine !== null && row.caffeine !== '' ? row.caffeine : ''}" class="w-16 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-right text-xs text-white" /></td>
+            <td class="py-2 px-2 text-left text-[11px]">${classifyTrainingDay(row.exercise)}</td>
+            <td class="py-2 px-2"><input id="editNotes_${row.id}" type="text" maxlength="1000" value="${escapeHtml(row.notes || '')}" class="w-36 rounded bg-slate-950 border border-teal-500/60 px-2 py-1 text-xs text-white" /></td>
+            <td class="py-2 px-2 text-center whitespace-nowrap space-x-1">
+              <button type="button" data-save-log="${row.id}" class="rounded bg-teal-600 hover:bg-teal-500 px-2 py-1 text-[11px] font-sans font-bold text-white">Save</button>
+              <button type="button" data-cancel-log="${row.id}" class="rounded bg-slate-800 hover:bg-slate-700 px-2 py-1 text-[11px] font-sans text-slate-300">Cancel</button>
+            </td>
+          `;
+        } else {
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-sans text-slate-200">${row.date}</td>
+            <td class="py-2.5 px-3 text-right text-slate-300">${row.base}</td>
+            <td class="py-2.5 px-3 text-right text-slate-100">${row.consumed}</td>
+            <td class="py-2.5 px-3 text-right text-slate-100">${row.exercise}</td>
+            <td class="py-2.5 px-3 text-right ${netColor}">${net}</td>
+            <td class="py-2.5 px-3 text-right text-slate-300">${row.protein !== null && row.protein !== '' ? row.protein : '—'}</td>
+            <td class="py-2.5 px-3 text-right text-slate-300">${row.carbs !== null && row.carbs !== '' ? row.carbs : '—'}</td>
+            <td class="py-2.5 px-3 text-right text-slate-300">${row.fats !== null && row.fats !== '' ? row.fats : '—'}</td>
+            <td class="py-2.5 px-3 text-right text-slate-300">${row.caffeine !== null && row.caffeine !== '' ? row.caffeine : '—'}</td>
+            <td class="py-2.5 px-3 text-left text-[11px]">${classifyTrainingDay(row.exercise)}</td>
+            <td class="py-2.5 px-3 text-left text-slate-300 text-[11px] max-w-48 break-words">${escapeHtml(row.notes || '') || '—'}</td>
+            <td class="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
+              <button type="button" data-edit-log="${row.id}" class="rounded px-2 py-0.5 text-[11px] font-sans font-semibold text-teal-300 hover:bg-teal-500/20">Edit</button>
+              <button type="button" data-delete-log="${row.id}" class="rounded px-2 py-0.5 text-[11px] font-sans text-rose-400 hover:bg-rose-500/20">Delete</button>
+            </td>
+          `;
+        }
+        tbody.appendChild(tr);
+      });
+
+      // Attach edit, save, cancel, and delete handlers for daily log rows
+      tbody.querySelectorAll('[data-edit-log]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          editingRowId = Number(btn.getAttribute('data-edit-log'));
+          const idx = state.dailyLogs.findIndex((item) => item.id === editingRowId);
+          if (idx >= 0) state.selectedDayId = `week_${Math.floor(idx / 7)}`;
+          renderAll();
+        });
+      });
+
+      tbody.querySelectorAll('[data-cancel-log]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          editingRowId = null;
+          renderAll();
+        });
+      });
+
+      tbody.querySelectorAll('[data-save-log]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-save-log'));
+          const targetRow = state.dailyLogs.find((item) => item.id === id);
+          if (targetRow) {
+            targetRow.date = document.getElementById(`editDate_${id}`).value.trim() || targetRow.date;
+            targetRow.notes = document.getElementById(`editNotes_${id}`).value.trim();
+            targetRow.base = parseFloat(document.getElementById(`editBase_${id}`).value) || 0;
+            targetRow.consumed = parseFloat(document.getElementById(`editConsumed_${id}`).value) || 0;
+            targetRow.exercise = parseFloat(document.getElementById(`editExercise_${id}`).value) || 0;
+
+            const pVal = document.getElementById(`editProtein_${id}`).value;
+            const cVal = document.getElementById(`editCarbs_${id}`).value;
+            const fVal = document.getElementById(`editFats_${id}`).value;
+            const cafVal = document.getElementById(`editCaffeine_${id}`).value;
+
+            targetRow.protein = pVal !== '' ? parseFloat(pVal) : null;
+            targetRow.carbs = cVal !== '' ? parseFloat(cVal) : null;
+            targetRow.fats = fVal !== '' ? parseFloat(fVal) : null;
+            targetRow.caffeine = cafVal !== '' ? parseFloat(cafVal) : null;
+          }
+          editingRowId = null;
+          const savedIdx = state.dailyLogs.findIndex((item) => item.id === id);
+          if (savedIdx >= 0) state.selectedDayId = `week_${Math.floor(savedIdx / 7)}`;
+          saveState();
+          renderAll();
+          showToast(`Updated entry for ${targetRow ? targetRow.date : 'row'}!`);
+        });
+      });
+
+      tbody.querySelectorAll('[data-delete-log]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-delete-log'));
+          if (editingRowId === id) editingRowId = null;
+          deleteEntryWithUndo('dailyLogs', id, 'daily log');
+          showToast('Removed daily log entry.');
+        });
+      });
+
+      const caloriesBurnedToDate = -totalNetGainLoss; // Deficit is negative net gain/loss
+      const poundsLostToDate = caloriesBurnedToDate / 3500;
+      const avgConsumed = daysCounting > 0 ? totalConsumed / daysCounting : 0;
+      const avgExercise = daysCounting > 0 ? totalExercise / daysCounting : 0;
+      const avgDailyDeficit = daysCounting > 0 ? caloriesBurnedToDate / daysCounting : 0;
+      const weightShouldBe = g.startWeight - poundsLostToDate;
+      const weightDiff = g.currentWeight - weightShouldBe;
+
+      const totalCalNeeded = Math.max(0, (g.startWeight - g.idealWeight) * 3500);
+      const remainingCalNeeded = Math.max(0, totalCalNeeded - caloriesBurnedToDate);
+      const daysToGoalAtAvg = avgDailyDeficit > 0 ? remainingCalNeeded / avgDailyDeficit : 0;
+      const calForNextPound = caloriesBurnedToDate >= 0
+        ? Math.round(3500 - (caloriesBurnedToDate % 3500))
+        : 3500;
+
+      // Dates math matching spreadsheet
+      const startDt = new Date(g.startDate + 'T00:00:00');
+      const goalDt = new Date(g.goalDate + 'T00:00:00');
+      const targetSpanDays = Math.max(1, (goalDt - startDt) / (1000 * 60 * 60 * 24));
+      const reqDailyDeficit = totalCalNeeded / (targetSpanDays + 10.18);
+
+      const latestLogged = logs.map(r=>parseTrackerDate(r.date)).filter(Boolean)
+        .reduce((last,d)=>!last||d>last?d:last,null);
+      const now = new Date();
+      const projectionAnchor = latestLogged && latestLogged > now ? latestLogged : now;
+      let expectedDateStr = '—';
+      if (remainingCalNeeded <= 0) expectedDateStr = 'Goal reached (estimated)';
+      else if (avgDailyDeficit > 0 && Number.isFinite(daysToGoalAtAvg)) {
+        expectedDateStr = formatShortDate(addCalendarDays(projectionAnchor, Math.ceil(daysToGoalAtAvg)));
+      }
+
+      // Approximate body composition, assuming ~75% of weight change is fat.
+      // Favor the entered/current weighed weight; fall back to projected weight when unchanged.
+      const startWeight = Number(g.startWeight) || 1;
+      const measured = Number(g.currentWeight);
+      const estimatedWeight = Number.isFinite(measured) && measured > 0 && Math.abs(measured - startWeight) > 0.01
+        ? measured : weightShouldBe;
+      const fatMassEstimate = Math.max(0,Math.min(estimatedWeight, (startWeight * (Number(g.startBodyFat)||0)/100) - 0.75*(startWeight-estimatedWeight)));
+      const estBodyFat = Math.max(0,Math.min(100,100*fatMassEstimate/Math.max(1,estimatedWeight)));
+      const progressPct = totalCalNeeded > 0 ? Math.min(100, Math.max(0, (caloriesBurnedToDate / totalCalNeeded) * 100)) : 0;
+
+      document.getElementById('statPoundsLost').textContent = poundsLostToDate.toFixed(2);
+      document.getElementById('statCaloriesBurnedToDate').textContent = Math.round(caloriesBurnedToDate);
+      document.getElementById('statAvgConsumed').textContent = avgConsumed.toFixed(2);
+      document.getElementById('statDaysCounting').textContent = daysCounting;
+      document.getElementById('statExpectedGoalDate').textContent = expectedDateStr;
+      document.getElementById('statReqDailyDeficit').textContent = reqDailyDeficit.toFixed(2);
+      document.getElementById('statWeightShouldBe').textContent = weightShouldBe.toFixed(2);
+      document.getElementById('statCalForNextPound').textContent = calForNextPound;
+      document.getElementById('statAvgExerciseBurned').textContent = avgExercise.toFixed(2);
+      document.getElementById('statTotalCalNeeded').textContent = Math.round(totalCalNeeded);
+      document.getElementById('statRemainingCalNeeded').textContent = Math.round(remainingCalNeeded);
+      document.getElementById('statDaysToGoalAtAvg').textContent = daysToGoalAtAvg.toFixed(2);
+      document.getElementById('statWeightDifference').textContent = weightDiff.toFixed(2);
+      document.getElementById('statEstBodyFat').textContent = estBodyFat.toFixed(2);
+      document.getElementById('statAvgDailyDeficit').textContent = avgDailyDeficit.toFixed(2);
+      document.getElementById('statProgressPct').textContent = progressPct.toFixed(1) + '%';
+      document.getElementById('goalProgressBar').style.width = progressPct.toFixed(1) + '%';
+
+      // 2. Macros Calculation (Screenshot 2)
+      const macroRows = logs.filter((r) => r.protein !== null && r.protein !== '' && r.carbs !== null && r.fats !== null);
+      const mCount = macroRows.length || 1;
+      const avgProteinG = macroRows.reduce((acc, r) => acc + Number(r.protein || 0), 0) / mCount;
+      const avgCarbsG = macroRows.reduce((acc, r) => acc + Number(r.carbs || 0), 0) / mCount;
+      const avgFatsG = macroRows.reduce((acc, r) => acc + Number(r.fats || 0), 0) / mCount;
+
+      const proteinCal = avgProteinG * 4;
+      const carbsCal = avgCarbsG * 4;
+      const fatsCal = avgFatsG * 9;
+      const totalMacroCal = proteinCal + carbsCal + fatsCal || 1;
+
+      const proteinPct = (proteinCal / totalMacroCal) * 100;
+      const carbsPct = (carbsCal / totalMacroCal) * 100;
+      const fatsPct = (fatsCal / totalMacroCal) * 100;
+
+      document.getElementById('macroProteinPct').textContent = proteinPct.toFixed(2) + '%';
+      document.getElementById('macroProteinGrams').textContent = avgProteinG.toFixed(2);
+      document.getElementById('macroProteinCal').textContent = proteinCal.toFixed(2);
+
+      document.getElementById('macroCarbsPct').textContent = carbsPct.toFixed(2) + '%';
+      document.getElementById('macroCarbsGrams').textContent = avgCarbsG.toFixed(2);
+      document.getElementById('macroCarbsCal').textContent = carbsCal.toFixed(2);
+
+      document.getElementById('macroFatsPct').textContent = fatsPct.toFixed(2) + '%';
+      document.getElementById('macroFatsGrams').textContent = avgFatsG.toFixed(2);
+      document.getElementById('macroFatsCal').textContent = fatsCal.toFixed(2);
+
+      document.getElementById('macroDaysCountNote').textContent = `${macroRows.length} days w/ macros`;
+      document.getElementById('macroTotalCal').textContent = (proteinCal + carbsCal + fatsCal).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
+      updateSimulator(g, avgDailyDeficit, remainingCalNeeded, daysToGoalAtAvg);
+      document.getElementById('statCaloriesBurnedToDateCopy').textContent = Math.round(caloriesBurnedToDate).toLocaleString();
+      updateDailyTargetBars(g, logs);
+      updateMacrosChart(proteinPct, carbsPct, fatsPct);
+      updateWeightTimeline();
+      updateBodyFatTracker();
+      updateCalorieProjections();
+    }
+
+    // Estimates are chart overlays only; never write projected measurements to state.
+    function calorieProjection(anchor, isBodyFat, today = new Date()) {
+      const anchorDate = anchor && parseTrackerDate(anchor.date);
+      const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      if (!anchorDate || anchorDate > todayDate || !(Number(anchor.weight) > 0) ||
+          (isBodyFat && !(Number(anchor.bodyFat) > 0 && Number(anchor.bodyFat) < 100))) {
+        return {points: [], note: 'Add a valid measured entry to anchor the projection.'};
+      }
+      const byDay = new Map();
+      for (const row of state.dailyLogs) {
+        const date = parseTrackerDate(row.date);
+        if (!date || date > todayDate || ['base', 'exercise', 'consumed'].some(k => row[k] === '' || row[k] == null || !Number.isFinite(Number(row[k])))) continue;
+        byDay.set(trackerDayKey(date), {date, balance: Number(row.consumed) - Number(row.base) - Number(row.exercise)});
+      }
+      const rows = [...byDay.values()].sort((a,b) => a.date-b.date);
+      const windowStart = addCalendarDays(todayDate, -13);
+      const recent = rows.filter(row => row.date >= windowStart);
+      const mean = recent.length ? recent.reduce((sum,row) => sum+row.balance,0)/recent.length : null;
+      const baseWeight = Number(anchor.weight);
+      const baseFat = baseWeight * Number(anchor.bodyFat) / 100;
+      let change = 0;
+      const points = [];
+      const addPoint = date => {
+        const weight = baseWeight + change;
+        const fat = baseFat + 0.75 * change;
+        // Stop estimates that exceed the simple model's physical range.
+        if (!(weight > 0) || (isBodyFat && !(fat > 0 && fat < weight))) return false;
+        points.push({date: trackerDayKey(date), value: Number((isBodyFat ? 100*fat/weight : weight).toFixed(2))});
+        return true;
+      };
+      addPoint(anchorDate);
+      let stopped = false;
+      for (const row of rows) {
+        // Anchor measurements are treated as end-of-day; do not count that day twice.
+        if (row.date <= anchorDate) continue;
+        change += row.balance/3500;
+        if (!addPoint(row.date)) {stopped=true;break;}
+      }
+      if (mean !== null && !stopped) {
+        for (let day=1; day<=30; day++) {
+          change += mean/3500;
+          if (!addPoint(addCalendarDays(todayDate,day))) {stopped=true;break;}
+        }
+      }
+      const missing = 'Unlogged past days are omitted, not estimated. Measurement day is excluded.';
+      const rate = mean === null ? 'No forward estimate: log calories in the last 14 days.' :
+        `Next 30 days use ${Math.round(Math.abs(mean)).toLocaleString()} kcal/day ${mean <= 0 ? 'deficit' : 'surplus'}, averaged across ${recent.length} logged day(s) in the last 14 days.`;
+      return {points: points.length > 1 ? points : [], note:
+        `◇ Dashed amber diamonds = projected, not measured. ${rate} ${missing} Uses the approximate 3,500 kcal/lb rule.` +
+        (isBodyFat ? ' Assumes 75% of weight change is fat and 25% lean mass; actual composition cannot be determined from calories alone.' : ' Water, metabolism, and logging error can change actual results.') +
+        (stopped ? ' Projection stops where the model becomes invalid.' : '')};
+    }
+
+    function overlayCalorieProjection(chart, projection, label) {
+      if (!chart) return;
+      const oldLabels = [...chart.data.labels];
+      const datasets = chart.data.datasets.filter(dataset => !dataset.calorieProjection);
+      const keys = new Set(oldLabels.map(date => trackerDayKey(parseTrackerDate(date))));
+      projection.points.forEach(point => keys.add(point.date));
+      const labels = [...keys].sort();
+      for (const dataset of datasets) {
+        const values = new Map(oldLabels.map((date,i) => [trackerDayKey(parseTrackerDate(date)), dataset.data[i]]));
+        dataset.data = labels.map(key => values.get(key) ?? null);
+      }
+      const projected = new Map(projection.points.map(point => [point.date, point.value]));
+      chart.data.labels = labels;
+      chart.data.datasets = [...datasets, {
+        label, calorieProjection: true, data: labels.map(key => projected.get(key) ?? null),
+        borderColor: '#fbbf24', backgroundColor: '#fbbf24', pointStyle: 'rectRot',
+        pointRadius: 4, pointHoverRadius: 7, borderDash: [7,5], borderWidth: 2,
+        spanGaps: true, fill: false, tension: 0
+      }];
+      const values = chart.data.datasets.flatMap(dataset => dataset.data).filter(value => typeof value === 'number' && Number.isFinite(value));
+      if (values.length) {
+        chart.options.scales.y.suggestedMin = Math.floor(Math.min(...values)-2);
+        chart.options.scales.y.suggestedMax = Math.ceil(Math.max(...values)+2);
+      }
+      chart.options.plugins.legend.labels.usePointStyle = true;
+      chart.update();
+    }
+
+    function updateCalorieProjections() {
+      const latest = entries => entries.filter(entry => parseTrackerDate(entry.date) && parseTrackerDate(entry.date) <= new Date() && Number(entry.weight)>0)
+        .sort((a,b) => parseTrackerDate(b.date)-parseTrackerDate(a.date))[0];
+      const weight = calorieProjection(latest(state.weightTimeline), false);
+      const bodyFat = calorieProjection(latest(state.bodyFatTimeline), true);
+      overlayCalorieProjection(weightChartInstance, weight, 'Projected Weight (lbs)');
+      overlayCalorieProjection(bodyFatChartInstance, bodyFat, 'Projected Body Fat (%)');
+      document.getElementById('weightProjectionNote').textContent = weight.note;
+      document.getElementById('bodyFatProjectionNote').textContent = bodyFat.note;
+    }
+
+    function updateSimulator(g, avgDailyDeficit, remainingCalNeeded, daysToGoalAtAvg) {
+      const slider = document.getElementById('simExtraDeficitSlider');
+      if (slider && Number(slider.value) !== simExtraDeficit) {
+        slider.value = simExtraDeficit;
+      }
+      const sign = simExtraDeficit >= 0 ? '+' : '';
+      document.getElementById('simSliderValueBadge').textContent = `${sign}${simExtraDeficit} kcal/day`;
+
+      const simDeficit = Math.max(25, avgDailyDeficit + simExtraDeficit);
+      const simDaysLeft = remainingCalNeeded > 0 ? remainingCalNeeded / simDeficit : 0;
+      const daysDiff = daysToGoalAtAvg - simDaysLeft;
+
+      document.getElementById('simTotalDeficitStat').textContent = `${simDeficit.toFixed(2)} kcal/day`;
+      document.getElementById('simVsCurrentDeficitNote').textContent = `vs. ${avgDailyDeficit.toFixed(2)} current avg`;
+      document.getElementById('simDaysLeftStat').textContent = `${simDaysLeft.toFixed(1)} days`;
+
+      const savedBadge = document.getElementById('simDaysSavedBadge');
+      if (Math.abs(daysDiff) < 0.2) {
+        savedBadge.textContent = 'Matches current pace';
+        savedBadge.className = 'text-[11px] font-semibold text-slate-400 block';
+      } else if (daysDiff > 0) {
+        savedBadge.textContent = `${daysDiff.toFixed(1)} days faster!`;
+        savedBadge.className = 'text-[11px] font-semibold text-emerald-400 block';
+      } else {
+        savedBadge.textContent = `${Math.abs(daysDiff).toFixed(1)} days slower`;
+        savedBadge.className = 'text-[11px] font-semibold text-amber-300 block';
+      }
+
+      const latestLog = state.dailyLogs.map(r=>parseTrackerDate(r.date)).filter(Boolean).reduce((a,d)=>!a||d>a?d:a,null);
+      const today = new Date();
+      const anchor = latestLog && latestLog>today ? latestLog : today;
+      const goalDt = new Date(g.goalDate + 'T00:00:00');
+      if (simDaysLeft > 0 && Number.isFinite(simDaysLeft)) {
+        const simExpDt = addCalendarDays(anchor,Math.ceil(simDaysLeft));
+        document.getElementById('simGoalDateStat').textContent = formatShortDate(simExpDt);
+
+        if (!isNaN(goalDt.getTime())) {
+          const vsTargetDays = Math.round((goalDt - simExpDt) / (1000 * 60 * 60 * 24));
+          document.getElementById('simTargetComparisonNote').textContent = vsTargetDays >= 0
+            ? `${vsTargetDays} days ahead of ${formatShortDate(goalDt)} target!`
+            : `${Math.abs(vsTargetDays)} days after ${formatShortDate(goalDt)} target`;
+        }
+      } else {
+        document.getElementById('simGoalDateStat').textContent = 'Goal Reached!';
+        document.getElementById('simTargetComparisonNote').textContent = '0 calories remaining';
+      }
+    }
+
+    function buildCsvString() {
+      const headers = [
+        'Date',
+        'Standard Calories Burned',
+        'Calories Consumed',
+        'Calories Burned Through Exercise',
+        'Net Gain/Loss',
+        'Protein Consumed (g)',
+        'Carbs Consumed (g)',
+        'Fats Consumed (g)',
+        'Caffeine Consumed (mg)',
+        'Workout / Nutrition Notes'
+      ];
+      const rows = state.dailyLogs.map((r) => {
+        const net = r.consumed - r.base - r.exercise;
+        return [
+          `"${String(r.date).replace(/"/g, '""')}"`,
+          r.base,
+          r.consumed,
+          r.exercise,
+          net,
+          r.protein !== null && r.protein !== '' ? r.protein : '',
+          r.carbs !== null && r.carbs !== '' ? r.carbs : '',
+          r.fats !== null && r.fats !== '' ? r.fats : '',
+          r.caffeine !== null && r.caffeine !== '' ? r.caffeine : '',
+          `"${String(r.notes || '').replace(/"/g, '""')}"`
+        ].join(',');
+      });
+      return [headers.join(','), ...rows].join('\n');
+    }
+
+    function updateDailyTargetBars(g, logs) {
+      document.getElementById('inputTargetCal').value = g.targetCal || 2100;
+      document.getElementById('inputTargetProtein').value = g.targetProtein || 150;
+      document.getElementById('inputTargetCarbs').value = g.targetCarbs || 200;
+      document.getElementById('inputTargetFats').value = g.targetFats || 55;
+
+      const selectEl = document.getElementById('targetDaySelect');
+      selectEl.innerHTML = '';
+      if (logs.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No weeks logged';
+        selectEl.appendChild(opt);
+        return;
+      }
+
+      // Build 7-day weekly timeframes plus Last 7 Days & All Days options
+      const timeframes = [];
+      const totalWeeks = Math.ceil(logs.length / 7);
+      for (let w = 0; w < totalWeeks; w++) {
+        const slice = logs.slice(w * 7, (w + 1) * 7);
+        const startStr = slice[0].date;
+        const endStr = slice[slice.length - 1].date;
+        timeframes.push({
+          key: `week_${w}`,
+          label: `Week ${w + 1}: ${startStr} – ${endStr} (${slice.length} day${slice.length > 1 ? 's' : ''})`,
+          rows: slice
+        });
+      }
+      if (logs.length > 7) {
+        const last7 = logs.slice(-7);
+        timeframes.push({
+          key: 'last_7',
+          label: `Last 7 Logged Days: ${last7[0].date} – ${last7[last7.length - 1].date}`,
+          rows: last7
+        });
+      }
+      timeframes.push({
+        key: 'all_days',
+        label: `All Logged Days: ${logs[0].date} – ${logs[logs.length - 1].date} (${logs.length} days)`,
+        rows: logs
+      });
+
+      if (!timeframes.some((tf) => tf.key === String(state.selectedDayId))) {
+        state.selectedDayId = timeframes[0].key;
+      }
+
+      timeframes.forEach((tf) => {
+        const opt = document.createElement('option');
+        opt.value = tf.key;
+        opt.textContent = tf.label;
+        if (tf.key === String(state.selectedDayId)) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+
+      const activeTf = timeframes.find((tf) => tf.key === String(state.selectedDayId)) || timeframes[0];
+      const weekRows = activeTf.rows;
+      const numDays = Math.max(1, weekRows.length);
+
+      const tCalDaily = Math.max(1, g.targetCal || 2100);
+      const tProDaily = Math.max(1, g.targetProtein || 150);
+      const tCarbDaily = Math.max(1, g.targetCarbs || 200);
+      const tFatDaily = Math.max(1, g.targetFats || 55);
+
+      const weekCalConsumed = weekRows.reduce((acc, r) => acc + Number(r.consumed || 0), 0);
+      const weekCalTarget = tCalDaily * numDays;
+      const avgCalDaily = Math.round(weekCalConsumed / numDays);
+
+      const weekNet = weekRows.reduce((acc, r) => acc + (Number(r.consumed || 0) - Number(r.base || 0) - Number(r.exercise || 0)), 0);
+      const weekLbsChange = (-weekNet / 3500).toFixed(2);
+      const netBadge = document.getElementById('weekNetSummaryBadge');
+      if (netBadge) {
+        const netSign = weekNet > 0 ? '+' : '';
+        netBadge.textContent = `Week Net: ${netSign}${weekNet.toLocaleString()} kcal (${weekLbsChange} lbs lost)`;
+        netBadge.className = weekNet <= 0
+          ? 'rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-300'
+          : 'rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-xs font-mono font-semibold text-amber-300';
+      }
+
+      const macroLoggedRows = weekRows.filter((r) => r.protein !== null && r.protein !== '' && r.carbs !== null && r.fats !== null);
+      const mDays = macroLoggedRows.length;
+
+      const avgPro = mDays > 0 ? Math.round(macroLoggedRows.reduce((a, r) => a + Number(r.protein || 0), 0) / mDays) : 0;
+      const avgCarb = mDays > 0 ? Math.round(macroLoggedRows.reduce((a, r) => a + Number(r.carbs || 0), 0) / mDays) : 0;
+      const avgFat = mDays > 0 ? Math.round(macroLoggedRows.reduce((a, r) => a + Number(r.fats || 0), 0) / mDays) : 0;
+
+      const totalPro = macroLoggedRows.reduce((a, r) => a + Number(r.protein || 0), 0);
+      const totalCarb = macroLoggedRows.reduce((a, r) => a + Number(r.carbs || 0), 0);
+      const totalFat = macroLoggedRows.reduce((a, r) => a + Number(r.fats || 0), 0);
+
+      const calPct = Math.min(100, Math.round((weekCalConsumed / weekCalTarget) * 100));
+      const proPct = Math.min(100, Math.round((avgPro / tProDaily) * 100));
+      const carbPct = Math.min(100, Math.round((avgCarb / tCarbDaily) * 100));
+      const fatPct = Math.min(100, Math.round((avgFat / tFatDaily) * 100));
+
+      document.getElementById('barCalLabel').textContent = `${avgCalDaily} / ${tCalDaily} kcal/day`;
+      document.getElementById('barCalFill').style.width = `${calPct}%`;
+      document.getElementById('barCalFill').className = weekCalConsumed > weekCalTarget
+        ? 'h-full bg-rose-400 transition-all duration-300'
+        : 'h-full bg-teal-400 transition-all duration-300';
+      const weekCalDiff = weekCalTarget - weekCalConsumed;
+      document.getElementById('barCalStatus').textContent = weekCalDiff >= 0
+        ? `Week Total: ${weekCalConsumed.toLocaleString()} / ${weekCalTarget.toLocaleString()} kcal (${weekCalDiff.toLocaleString()} under)`
+        : `Week Total: ${weekCalConsumed.toLocaleString()} / ${weekCalTarget.toLocaleString()} kcal (${Math.abs(weekCalDiff).toLocaleString()} over)`;
+
+      document.getElementById('barProteinLabel').textContent = `${avgPro} / ${tProDaily} g/day`;
+      document.getElementById('barProteinFill').style.width = `${proPct}%`;
+      document.getElementById('barProteinStatus').textContent = mDays === 0
+        ? 'No macros logged in this week — click Edit on rows below!'
+        : `Week Total: ${totalPro}g across ${mDays}/${numDays} days w/ macros`;
+
+      document.getElementById('barCarbsLabel').textContent = `${avgCarb} / ${tCarbDaily} g/day`;
+      document.getElementById('barCarbsFill').style.width = `${carbPct}%`;
+      document.getElementById('barCarbsStatus').textContent = mDays === 0
+        ? 'No macros logged in this week — click Edit on rows below!'
+        : `Week Total: ${totalCarb}g across ${mDays}/${numDays} days w/ macros`;
+
+      document.getElementById('barFatsLabel').textContent = `${avgFat} / ${tFatDaily} g/day`;
+      document.getElementById('barFatsFill').style.width = `${fatPct}%`;
+      document.getElementById('barFatsStatus').textContent = mDays === 0
+        ? 'No macros logged in this week — click Edit on rows below!'
+        : `Week Total: ${totalFat}g across ${mDays}/${numDays} days w/ macros`;
+    }
+
+    function updateMacrosChart(proteinPct, carbsPct, fatsPct) {
+      const ctx = document.getElementById('macrosPieChart').getContext('2d');
+      const dataVals = [
+        Number(proteinPct.toFixed(1)),
+        Number(carbsPct.toFixed(1)),
+        Number(fatsPct.toFixed(1))
+      ];
+      if (macrosChartInstance) {
+        macrosChartInstance.data.datasets[0].data = dataVals;
+        macrosChartInstance.update();
+        return;
+      }
+      macrosChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Protein', 'Carbs', 'Fats'],
+          datasets: [{
+            data: dataVals,
+            backgroundColor: ['#fdd03b', '#9be564', '#ff686b'],
+            borderColor: '#0f1c2e',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#e2e8f0', font: { family: 'Inter', size: 12 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.label}: ${context.parsed.toFixed(1)}%`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateWeightTimeline() {
+      const pts = [...state.weightTimeline].sort((a,b)=>{
+        const da=parseTrackerDate(a.date), db=parseTrackerDate(b.date);
+        return (da?da.getTime():0)-(db?db.getTime():0);
+      });
+      const labels = pts.map((p) => p.date);
+      const weights = pts.map((p) => Number(p.weight));
+      // Mean of weigh-ins from the previous 7 CALENDAR days, not previous 7 readings.
+      const moving7 = pts.map((p,i)=>{
+        const end=parseTrackerDate(p.date); if(!end)return Number(p.weight);
+        const start=addCalendarDays(end,-6);
+        const recent=pts.slice(0,i+1).filter(x=>{const d=parseTrackerDate(x.date);return d&&d>=start&&d<=end;});
+        return Number((recent.reduce((a,x)=>a+Number(x.weight),0)/recent.length).toFixed(2));
+      });
+
+      // Compute Linear Regression Trendline (y = m*x + b)
+      const n = weights.length;
+      let trendData = [];
+      if (n >= 2) {
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        for (let i = 0; i < n; i++) {
+          const d=parseTrackerDate(pts[i].date);
+          const x=d&&parseTrackerDate(pts[0].date)?(d-parseTrackerDate(pts[0].date))/86400000:i;
+          sumX += x;
+          sumY += weights[i];
+          sumXY += x * weights[i];
+          sumXX += x * x;
+        }
+        const denominator=n * sumXX - sumX * sumX;
+        const slope=denominator===0?0:(n * sumXY - sumX * sumY)/denominator;
+        const intercept=(sumY-slope*sumX)/n;
+        const first=parseTrackerDate(pts[0].date);
+        trendData=weights.map((_,i)=>{
+          const d=parseTrackerDate(pts[i].date);
+          const x=d&&first?(d-first)/86400000:i;
+          return Number((slope*x+intercept).toFixed(2));
+        });
+      } else {
+        trendData = [];
+      }
+
+      const allYVals = [...weights, ...trendData, ...moving7].filter((v) => typeof v === 'number' && !isNaN(v));
+      const minW = allYVals.length > 0 ? Math.min(...allYVals) : 200;
+      const maxW = allYVals.length > 0 ? Math.max(...allYVals) : 220;
+      const yMin = Math.floor(minW - 3);
+      const yMax = Math.ceil(maxW + 3);
+
+      const ctx = document.getElementById('weightTimelineChart').getContext('2d');
+      if (weightChartInstance) {
+        weightChartInstance.data.labels = labels;
+        weightChartInstance.data.datasets[0].data = weights;
+        weightChartInstance.data.datasets[1].data = trendData;
+        weightChartInstance.data.datasets[2].data = moving7;
+        weightChartInstance.options.scales.y.suggestedMin = yMin;
+        weightChartInstance.options.scales.y.suggestedMax = yMax;
+        weightChartInstance.update();
+      } else {
+        weightChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Weight',
+                data: weights,
+                showLine: false,
+                pointStyle: 'triangle',
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                backgroundColor: '#2563eb',
+                borderColor: '#60a5fa'
+              },
+              {
+                label: 'Trendline for Weight',
+                data: trendData,
+                type: 'line',
+                fill: false,
+                pointRadius: 0,
+                borderColor: '#1d4ed8',
+                borderWidth: 2.5,
+                tension: 0
+              },
+              {
+                label: '7-Day Rolling Mean',
+                data: moving7,
+                type: 'line',
+                pointRadius: 1,
+                borderColor: '#2dd4bf',
+                borderDash: [5, 4],
+                borderWidth: 2,
+                tension: 0.25,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45, font: { size: 10 } },
+                grid: { color: 'rgba(148, 163, 184, 0.08)' }
+              },
+              y: {
+                suggestedMin: yMin,
+                suggestedMax: yMax,
+                ticks: { color: '#94a3b8' },
+                grid: { color: 'rgba(148, 163, 184, 0.15)' }
+              }
+            },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { color: '#e2e8f0', usePointStyle: true, font: { family: 'Inter', size: 12 } }
+              }
+            }
+          }
+        });
+      }
+
+      // Render weight chips
+      document.getElementById('weightCountBadge').textContent = pts.length;
+      if (pts.length >= 2) {
+        const diff = pts[pts.length - 1].weight - pts[0].weight;
+        const sign = diff > 0 ? '+' : '';
+        document.getElementById('weightTrendSummary').textContent = `Total Change: ${sign}${diff.toFixed(1)} lbs (${pts[0].weight} → ${pts[pts.length - 1].weight})`;
+      } else {
+        document.getElementById('weightTrendSummary').textContent = pts.length ? 'Log another weigh-in to see your change' : 'Log weigh-ins to see your change';
+      }
+
+      const chipsContainer = document.getElementById('weightChipsContainer');
+      chipsContainer.innerHTML = '';
+      pts.forEach((pt) => {
+        const chip = document.createElement('span');
+        chip.className = 'inline-flex items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1 text-[11px] font-mono text-slate-300';
+        chip.innerHTML = `
+          <span>${pt.date}: <strong class="text-white">${pt.weight}</strong></span>
+          <button type="button" data-delete-weight="${pt.id}" class="text-slate-500 hover:text-rose-400 font-sans font-bold">×</button>
+        `;
+        chipsContainer.appendChild(chip);
+      });
+
+      chipsContainer.querySelectorAll('[data-delete-weight]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-delete-weight'));
+          deleteEntryWithUndo('weightTimeline', id, 'weigh-in');
+          showToast('Removed weigh-in point.');
+        });
+      });
+    }
+
+    // --- VIEW TABS & EVENT LISTENERS ---
+    function setViewMode(mode) {
+      const s1 = document.getElementById('sectionSheet1');
+      const s2 = document.getElementById('sectionSheet2');
+      const s3 = document.getElementById('sectionSheet3');
+      const badge = document.getElementById('stepBadge');
+      const jumpNav = document.getElementById('fullDashboardJumpNav');
+
+      const s4 = document.getElementById('sectionSheet4');
+      const btns = {
+        all: document.getElementById('tabBtnAll'),
+        step1: document.getElementById('tabBtnStep1'),
+        step2: document.getElementById('tabBtnStep2'),
+        step3: document.getElementById('tabBtnStep3'),
+        step4: document.getElementById('tabBtnStep4')
+      };
+
+      Object.values(btns).forEach((b) => {
+        b.className = 'rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-300 hover:text-white hover:bg-slate-800';
+      });
+      btns[mode].className = 'rounded-lg px-3 py-1.5 text-xs font-semibold transition bg-teal-600 text-white shadow-sm';
+
+      if (jumpNav) jumpNav.classList.toggle('hidden', mode !== 'all');
+
+      if (mode === 'all') {
+        s1.classList.remove('hidden');
+        s2.classList.remove('hidden');
+        s3.classList.remove('hidden');
+        if (s4) s4.classList.remove('hidden');
+        badge.textContent = 'Active Tracker • All Views';
+      } else if (mode === 'step1') {
+        s1.classList.remove('hidden');
+        s2.classList.add('hidden');
+        s3.classList.add('hidden');
+        if (s4) s4.classList.add('hidden');
+        badge.textContent = 'Daily Log & Goals';
+      } else if (mode === 'step2') {
+        s1.classList.add('hidden');
+        s2.classList.remove('hidden');
+        s3.classList.add('hidden');
+        if (s4) s4.classList.add('hidden');
+        badge.textContent = 'Macros Breakdown';
+      } else if (mode === 'step3') {
+        s1.classList.add('hidden');
+        s2.classList.add('hidden');
+        s3.classList.remove('hidden');
+        if (s4) s4.classList.add('hidden');
+        badge.textContent = 'Weight Timeline';
+      } else if (mode === 'step4') {
+        s1.classList.add('hidden');
+        s2.classList.add('hidden');
+        s3.classList.add('hidden');
+        if (s4) s4.classList.remove('hidden');
+        badge.textContent = 'Body Fat Tracker';
+      }
+
+      if (macrosChartInstance) macrosChartInstance.resize();
+      if (weightChartInstance) weightChartInstance.resize();
+      if (bodyFatChartInstance) bodyFatChartInstance.resize();
+    }
+
+    
+    function updateBodyFatTracker() {
+      const pts = state.bodyFatTimeline || [];
+      const labels = pts.map((p) => p.date);
+      const bfVals = pts.map((p) => p.bodyFat);
+
+      const latest = pts.length > 0 ? pts[pts.length - 1] : { bodyFat: state.goals.startBodyFat || 35, weight: state.goals.currentWeight || 215 };
+      const curBf = Number(latest.bodyFat || 35);
+      const curWt = Number(latest.weight || state.goals.currentWeight || 215);
+
+      const fatMass = (curWt * (curBf / 100)).toFixed(2);
+      const leanMass = (curWt - (curWt * (curBf / 100))).toFixed(2);
+
+      const fatMassEl = document.getElementById("bfFatMassVal");
+      const leanMassEl = document.getElementById("bfLeanMassVal");
+      const summaryBadge = document.getElementById("bfLatestSummaryBadge");
+      if (fatMassEl) fatMassEl.textContent = `${fatMass} lbs`;
+      if (leanMassEl) leanMassEl.textContent = `${leanMass} lbs`;
+      if (summaryBadge) summaryBadge.textContent = `Current: ${curBf.toFixed(1)}% (${curWt} lbs)`;
+
+      const countBadge = document.getElementById("bfCountBadge");
+      if (countBadge) countBadge.textContent = pts.length;
+
+      const ctx = document.getElementById("bodyFatTimelineChart");
+      if (!ctx) return;
+      const chartCtx = ctx.getContext("2d");
+      const minBf = bfVals.length > 0 ? Math.min(...bfVals) : 20;
+      const maxBf = bfVals.length > 0 ? Math.max(...bfVals) : 40;
+      const bfMin = Math.floor(minBf - 2);
+      const bfMax = Math.ceil(maxBf + 2);
+
+      if (bodyFatChartInstance) {
+        bodyFatChartInstance.data.labels = labels;
+        bodyFatChartInstance.data.datasets[0].data = bfVals;
+        bodyFatChartInstance.options.scales.y.suggestedMin = bfMin;
+        bodyFatChartInstance.options.scales.y.suggestedMax = bfMax;
+        bodyFatChartInstance.update();
+      } else {
+        bodyFatChartInstance = new Chart(chartCtx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "Body Fat %",
+              data: bfVals,
+              borderColor: "#14b8a6",
+              backgroundColor: "rgba(20, 184, 166, 0.15)",
+              pointBackgroundColor: "#2dd4bf",
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              tension: 0.2,
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: { color: "#94a3b8", font: { size: 10 } },
+                grid: { color: "rgba(148, 163, 184, 0.08)" }
+              },
+              y: {
+                suggestedMin: bfMin,
+                suggestedMax: bfMax,
+                ticks: {
+                  color: "#94a3b8",
+                  callback: function(v) { return v + "%"; }
+                },
+                grid: { color: "rgba(148, 163, 184, 0.15)" }
+              }
+            },
+            plugins: {
+              legend: {
+                position: "top",
+                labels: { color: "#e2e8f0", font: { family: "Inter", size: 12 } }
+              }
+            }
+          }
+        });
+      }
+
+      const chipsContainer = document.getElementById("bfChipsContainer");
+      if (chipsContainer) {
+        chipsContainer.innerHTML = "";
+        pts.forEach((pt) => {
+          const chip = document.createElement("span");
+          chip.className = "inline-flex items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1 text-[11px] font-mono text-slate-300";
+          chip.innerHTML = `
+            <span>${pt.date}: <strong class="text-teal-300">${pt.bodyFat}%</strong> (${pt.weight} lbs)</span>
+            <button type="button" data-delete-bf="${pt.id}" class="text-slate-500 hover:text-rose-400 font-sans font-bold">×</button>
+          `;
+          chipsContainer.appendChild(chip);
+        });
+
+        chipsContainer.querySelectorAll("[data-delete-bf]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = Number(btn.getAttribute("data-delete-bf"));
+            deleteEntryWithUndo('bodyFatTimeline', id, 'body-fat entry');
+            showToast("Removed body fat entry.");
+          });
+        });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      document.getElementById('undoDeleteBtn').addEventListener('click', undoDeletedEntry);
+      const todayText = formatShortDate(new Date());
+      document.getElementById('logDate').value = todayText;
+      document.getElementById('bfDateInput').value = todayText;
+      document.getElementById('weightDateInput').value = todayText;
+      document.getElementById('logBase').value=state.goals.defaultBaseBurn || 1600;
+      setViewMode('all');
+      renderAll();
+
+      // View mode buttons
+      document.getElementById('tabBtnAll').addEventListener('click', () => setViewMode('all'));
+      document.getElementById('tabBtnStep1').addEventListener('click', () => setViewMode('step1'));
+      document.getElementById('tabBtnStep2').addEventListener('click', () => setViewMode('step2'));
+      document.getElementById('tabBtnStep3').addEventListener('click', () => setViewMode('step3'));
+      document.getElementById('tabBtnStep4').addEventListener('click', () => setViewMode('step4'));
+
+      // Quick navigation only changes the visible section and scroll position.
+      document.querySelectorAll('[data-jump-section]').forEach((button) => {
+        button.addEventListener('click', () => {
+          setViewMode('all');
+          const target = document.getElementById(button.dataset.jumpSection);
+          if (target) target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        });
+      });
+      document.getElementById('closeToastBtn').addEventListener('click', () => {
+        document.getElementById('toastBanner').classList.add('hidden');
+      });
+
+      // Goal input listeners
+      const bindGoalInput = (id, key, isNum = true) => {
+        document.getElementById(id).addEventListener('input', (e) => {
+          state.goals[key] = isNum ? ( parseFloat(e.target.value) || 0 ) : e.target.value;
+          if (key === 'defaultBaseBurn') {
+            document.getElementById('logBase').value = state.goals.defaultBaseBurn;
+          }
+          saveState();
+          renderAll();
+        });
+      };
+
+      bindGoalInput('inputStartDate', 'startDate', false);
+      bindGoalInput('inputGoalDate', 'goalDate', false);
+      bindGoalInput('inputStartWeight', 'startWeight', true);
+      bindGoalInput('inputIdealWeight', 'idealWeight', true);
+      bindGoalInput('inputCurrentWeight', 'currentWeight', true);
+      bindGoalInput('inputStartBodyFat', 'startBodyFat', true);
+      bindGoalInput('inputDefaultBaseBurn', 'defaultBaseBurn', true);
+      bindGoalInput('inputTargetCal', 'targetCal', true);
+      bindGoalInput('inputTargetProtein', 'targetProtein', true);
+      bindGoalInput('inputTargetCarbs', 'targetCarbs', true);
+      bindGoalInput('inputTargetFats', 'targetFats', true);
+      document.getElementById('coachWeeklyGoal').addEventListener('change',e=>{
+        state.goals.weeklyDeficitTarget=Number(e.target.value)===3500?3500:5250;
+        saveState();renderAll();
+      });
+      ['logProtein','logCarbs','logFats','logConsumed'].forEach(id=>{
+        document.getElementById(id).addEventListener('input',updateLiveMacroCalories);
+      });
+      document.getElementById('useMacroCalBtn').addEventListener('click',()=>{
+        const sum=updateLiveMacroCalories();
+        if(sum===null) return showToast('Enter all three macro amounts first.');
+        document.getElementById('logConsumed').value=sum;
+        updateLiveMacroCalories();
+      });
+
+      document.getElementById('targetDaySelect').addEventListener('change', (e) => {
+        state.selectedDayId = e.target.value;
+        try { localStorage.setItem('calorie_macro_weight_app_v2', JSON.stringify(state)); } catch (_) {}
+        renderAll();
+      });
+
+      // Step 3: Simulator slider & preset buttons
+      document.getElementById('simExtraDeficitSlider').addEventListener('input', (e) => {
+        simExtraDeficit = parseFloat(e.target.value) || 0;
+        renderAll();
+      });
+
+      document.querySelectorAll('[data-sim-preset]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          simExtraDeficit = parseFloat(btn.getAttribute('data-sim-preset')) || 0;
+          renderAll();
+        });
+      });
+
+      // Step 3: CSV Download & Copy for Spreadsheet
+      document.getElementById('exportCsvBtn').addEventListener('click', () => {
+        const csvContent = buildCsvString();
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'calorie_macro_weight_log.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast('Downloaded calorie_macro_weight_log.csv for Excel / Google Sheets!');
+      });
+
+      document.getElementById('copyCsvBtn').addEventListener('click', () => {
+        const csvContent = buildCsvString();
+        const ta = document.createElement('textarea');
+        ta.value = csvContent;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          showToast('Copied CSV table to clipboard! Paste directly into Google Sheets or Excel.');
+        } catch (err) {
+          showToast('Could not copy automatically — use the Download CSV button instead.');
+        }
+        document.body.removeChild(ta);
+      });
+
+      // Add daily log row
+      document.getElementById('addDayForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const dateVal = document.getElementById('logDate').value.trim();
+        const parsedDate = parseTrackerDate(dateVal);
+        if (!parsedDate) return showToast('Enter a valid date, e.g. 10/17/26.');
+        if (state.dailyLogs.some(r=>{const d=parseTrackerDate(r.date);return d && trackerDayKey(d)===trackerDayKey(parsedDate);})) {
+          return showToast('This date already has a daily log. Edit the existing row instead of creating a duplicate.');
+        }
+        const baseVal = parseFloat(document.getElementById('logBase').value) || 1600;
+        const consumedVal = parseFloat(document.getElementById('logConsumed').value) || 0;
+        const exerciseVal = parseFloat(document.getElementById('logExercise').value) || 0;
+
+        const pRaw = document.getElementById('logProtein').value;
+        const cRaw = document.getElementById('logCarbs').value;
+        const fRaw = document.getElementById('logFats').value;
+        const cafRaw = document.getElementById('logCaffeine').value;
+
+        state.dailyLogs.push({
+          id: Date.now(),
+          date: dateVal,
+          base: baseVal,
+          consumed: consumedVal,
+          exercise: exerciseVal,
+          protein: pRaw !== '' ? parseFloat(pRaw) : null,
+          carbs: cRaw !== '' ? parseFloat(cRaw) : null,
+          fats: fRaw !== '' ? parseFloat(fRaw) : null,
+          caffeine: cafRaw !== '' ? parseFloat(cafRaw) : null,
+          notes: document.getElementById('logNotes').value.trim()
+        });
+        const weightRaw = document.getElementById('logWeight').value;
+        if(weightRaw !== '') {
+          const weight = Number(weightRaw);
+          if(!Number.isFinite(weight) || weight<30 || weight>800) {
+            state.dailyLogs.pop();
+            return showToast('Enter a valid weight between 30 and 800 lbs.');
+          }
+          const existing=state.weightTimeline.find(x=>{const d=parseTrackerDate(x.date);return d && trackerDayKey(d)===trackerDayKey(parsedDate);});
+          if (existing) existing.weight=weight;
+          else state.weightTimeline.push({id:Date.now()+1,date:dateVal,weight});
+          state.goals.currentWeight=weight;
+        }
+        saveState();
+        renderAll();
+        document.getElementById('logWeight').value = '';
+        document.getElementById('logNotes').value = '';
+        showToast(`Added daily entry for ${dateVal}!`);
+      });
+
+      // Add weight timeline entry
+      document.getElementById('addWeightForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const dVal = document.getElementById('weightDateInput').value.trim() || 'New';
+        const wVal = parseFloat(document.getElementById('weightValInput').value);
+        if (isNaN(wVal)) return;
+
+        state.weightTimeline.push({
+          id: Date.now(),
+          date: dVal,
+          weight: wVal
+        });
+        state.goals.currentWeight = wVal;
+        saveState();
+        renderAll();
+        showToast(`Logged weigh-in: ${wVal} lbs on ${dVal}`);
+      });
+
+      // Reset: Start fresh as of today (10/16/26)
+      document.getElementById('resetDemoBtn').addEventListener('click', () => {
+        state = {
+          goals: JSON.parse(JSON.stringify(DEFAULT_GOALS)),
+          dailyLogs: JSON.parse(JSON.stringify(DEFAULT_DAILY_LOGS)),
+          weightTimeline: JSON.parse(JSON.stringify(DEFAULT_WEIGHT_TIMELINE)),
+          bodyFatTimeline: JSON.parse(JSON.stringify(DEFAULT_BODY_FAT_TIMELINE)),
+          selectedDayId: 'week_0'
+        };
+        saveState();
+        renderAll();
+        showToast('Started fresh as of today!');
+      });
+
+      // Body Fat log form
+      document.getElementById('addBodyFatForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const dVal = document.getElementById('bfDateInput').value.trim() || 'Today';
+        const bfVal = parseFloat(document.getElementById('bfPercentInput').value);
+        const wVal = parseFloat(document.getElementById('bfWeightInput').value) || state.goals.currentWeight;
+        if (isNaN(bfVal)) return;
+
+        state.bodyFatTimeline.push({
+          id: Date.now(),
+          date: dVal,
+          bodyFat: bfVal,
+          weight: wVal
+        });
+        // Starting body fat is a historical baseline and must not change with new measurements.
+        saveState();
+        renderAll();
+        showToast(`Logged body fat: ${bfVal}% on ${dVal}`);
+      });
+
+
+    });
+
+    // ======================================================================
+    // CALORIE NAS: separate endpoint, revision-controlled writes, safe migration
+    // ======================================================================
+    const CALORIE_NAS_URL = './calorie-api.php';
+    const CALORIE_NAS_TOKEN_KEY = 'calorie_nas_token_v1';
+    const CALORIE_NAS_META_KEY = 'calorie_nas_meta_v1';
+    let calorieNasToken = '';
+    let calorieNasMode = 'local'; // local, busy, ready, conflict, offline
+    let calorieNasRevision = null;
+    let calorieNasRemote = null;
+    let calorieNasBusy = false;
+    let calorieNasTimer = null;
+    let calorieNasPending = false;
+    let calorieNasSaving = false;
+    let calorieNasDirty = false;
+    let calorieNasLastSynced = '';
+    let calorieNasMeta = {};
+    let calorieLocalBackupSnapshot = null;
+    let calorieNasBackupRevision = null;
+
+    // selectedDayId is a local view preference; don't sync it across devices.
+    function calorieData() {
+      return {
+        goals: state.goals,
+        dailyLogs: state.dailyLogs,
+        weightTimeline: state.weightTimeline,
+        bodyFatTimeline: state.bodyFatTimeline
+      };
+    }
+    function calorieValidData(data) {
+      return data && typeof data === 'object' && !Array.isArray(data)
+        && data.goals && typeof data.goals === 'object' && !Array.isArray(data.goals)
+        && Array.isArray(data.dailyLogs) && Array.isArray(data.weightTimeline)
+        && Array.isArray(data.bodyFatTimeline);
+    }
+    function calorieDataString(data) { return JSON.stringify(data); }
+    function calorieGetLocalData() { return calorieDataString(calorieData()); }
+    function calorieReadMeta() {
+      try { return JSON.parse(localStorage.getItem(CALORIE_NAS_META_KEY) || '{}') || {}; }
+      catch (_) { return {}; }
+    }
+    function calorieWriteMeta() {
+      try {
+        localStorage.setItem(CALORIE_NAS_META_KEY, JSON.stringify({
+          lastSynced: calorieNasLastSynced,
+          revision: calorieNasRevision,
+          dirty: calorieNasDirty
+        }));
+      } catch (_) {}
+    }
+    function calorieStatus(mode, title, detail) {
+      calorieNasMode = mode;
+      const el = document.getElementById('calorieNasStatus');
+      const sub = document.getElementById('calorieNasDetail');
+      if (!el) return;
+      el.textContent = title;
+      el.className = 'mt-1 text-xs font-semibold ' + (
+        mode === 'ready' ? 'text-emerald-300' :
+        mode === 'busy' ? 'text-sky-300' :
+        mode === 'conflict' ? 'text-rose-300' : 'text-amber-300');
+      if (sub) sub.textContent = detail || '';
+    }
+    function calorieCount(data) {
+      return `${data.dailyLogs.length} days, ${data.weightTimeline.length} weigh-ins, ${data.bodyFatTimeline.length} body-fat entries`;
+    }
+    async function calorieRequest(method, body) {
+      if (!calorieNasToken) throw new Error('Enter the Calorie Tracker token in NAS Setup.');
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const resp = await fetch(CALORIE_NAS_URL, {
+          method,
+          headers: {
+            'X-Calorie-Token': calorieNasToken,
+            ...(method === 'PUT' ? {'Content-Type':'application/json'} : {})
+          },
+          body: method === 'PUT' ? JSON.stringify(body) : undefined,
+          credentials: 'same-origin', cache:'no-store', signal: controller.signal
+        });
+        const raw = await resp.text();
+        let json;
+        try { json = JSON.parse(raw); }
+        catch (_) { throw new Error('NAS returned non-JSON. Check PHP, calorie-api.php path, and port 8081.'); }
+        if (!resp.ok) {
+          const ex = new Error(json.error || `NAS HTTP ${resp.status}`);
+          ex.status = resp.status;
+          throw ex;
+        }
+        return json;
+      } finally { clearTimeout(timer); }
+    }
+    function calorieSetData(data) {
+      if (!calorieValidData(data)) throw new Error('Backup has an invalid Calorie Tracker format.');
+      const selection = state.selectedDayId || 'week_0';
+      state = {
+        goals: structuredClone(data.goals),
+        dailyLogs: structuredClone(data.dailyLogs),
+        weightTimeline: structuredClone(data.weightTimeline),
+        bodyFatTimeline: structuredClone(data.bodyFatTimeline),
+        selectedDayId: selection
+      };
+      // Avoid invoking saveState and accidentally scheduling a PUT.
+      localStorage.setItem('calorie_macro_weight_app_v2', JSON.stringify(state));
+      renderAll();
+    }
+    function calorieRecordSynced(data, revision) {
+      calorieNasLastSynced = calorieDataString(data);
+      calorieNasRevision = revision;
+      calorieNasDirty = false;
+      calorieNasPending = false;
+      calorieWriteMeta();
+      calorieStatus('ready', '✅ NAS connected • auto-save ON', `Synced: ${calorieCount(data)}. Changes save locally immediately and then to NAS.`);
+    }
+    function calorieOnLocalChange() {
+      // Every edit is saved immediately to the original localStorage key.
+      calorieNasDirty = true;
+      calorieWriteMeta();
+      if (calorieNasMode !== 'ready' && !calorieNasSaving) {
+        if (calorieNasMode !== 'conflict') calorieStatus('local', '⚠️ Saved locally only', 'Data differs from the last NAS copy. Connect / resolve NAS sync before relying on remote access.');
+        return;
+      }
+      calorieNasPending = true;
+      calorieStatus('busy', '⏳ Local save complete • sending to NAS…', 'Do not close this page until NAS confirms saving.');
+      clearTimeout(calorieNasTimer);
+      calorieNasTimer = setTimeout(caloriePush, 850);
+    }
+    window.calorieNasChanged = calorieOnLocalChange;
+
+    async function caloriePush() {
+      if (calorieNasSaving || !calorieNasPending || !calorieNasRevision || !calorieNasToken) return;
+      calorieNasSaving = true;
+      calorieNasPending = false;
+      const snapshot = calorieData();
+      const serialized = calorieDataString(snapshot);
+      const baseRevision = calorieNasRevision;
+      try {
+        const result = await calorieRequest('PUT', {revision:baseRevision, store:snapshot});
+        calorieNasRevision = result.revision;
+        calorieNasLastSynced = serialized;
+        calorieNasDirty = calorieGetLocalData() !== serialized;
+        calorieWriteMeta();
+        if (calorieNasDirty) {
+          calorieNasPending = true;
+          calorieStatus('busy', '⏳ New changes waiting to save…', 'Finishing the next NAS update.');
+        } else {
+          calorieRecordSynced(snapshot, result.revision);
+        }
+      } catch (e) {
+        calorieNasPending = false;
+        calorieNasDirty = true;
+        calorieWriteMeta();
+        calorieStatus(e.status === 409 ? 'conflict' : 'offline',
+          e.status === 409 ? '🛑 NAS changed on another device • auto-save paused' : '⚠️ NAS save failed • local data safe',
+          (e.message || 'Connection failed') + ' Export JSON before resolving.');
+      } finally {
+        calorieNasSaving = false;
+        if (calorieNasPending && calorieNasMode === 'busy') {
+          clearTimeout(calorieNasTimer);
+          calorieNasTimer = setTimeout(caloriePush, 250);
+        }
+      }
+    }
+
+    async function calorieCheckNas({auto=false} = {}) {
+      if (calorieNasSaving || calorieNasBusy) return;
+      if (!calorieNasToken) {
+        calorieStatus('local','⚠️ Local-only mode','Open NAS Setup and enter the token from calorie-api.php.');
+        return;
+      }
+      calorieNasBusy = true;
+      if (!auto) calorieStatus('busy','⏳ Checking private NAS storage…','Reading latest Calorie Tracker revision.');
+      try {
+        const reply = await calorieRequest('GET');
+        calorieNasRemote = reply.store;
+        const revision = reply.revision;
+        const local = calorieGetLocalData();
+        if (!calorieNasRemote) {
+          calorieNasRevision = revision;
+          calorieStatus('conflict', '☁️ NAS is empty • local entries untouched',
+            'Export a JSON backup, then select ↑ Upload device to NAS on your computer with the complete records.');
+        } else if (!calorieValidData(calorieNasRemote)) {
+          calorieStatus('conflict', '🛑 Invalid NAS data • auto-save paused', 'Do not overwrite it. Investigate the API or restore a NAS backup.');
+        } else {
+          const remoteString = calorieDataString(calorieNasRemote);
+          if (local === remoteString) {
+            calorieRecordSynced(calorieNasRemote, revision);
+          } else if (!calorieNasDirty && calorieNasMeta.lastSynced && local === calorieNasMeta.lastSynced) {
+            // Previously synced device: safe to accept newer server data.
+            calorieSetData(calorieNasRemote);
+            calorieRecordSynced(calorieNasRemote, revision);
+          } else if (calorieNasDirty && calorieNasLastSynced && remoteString === calorieNasLastSynced && revision === calorieNasMeta.revision) {
+            // Safe recovery after offline edits: the NAS copy did not change.
+            calorieNasRevision = revision;
+            calorieNasPending = true;
+            calorieStatus('busy', '⏳ Resuming saved local changes…', 'NAS is unchanged since your last sync; uploading pending edits safely.');
+            clearTimeout(calorieNasTimer);
+            calorieNasTimer = setTimeout(caloriePush, 100);
+          } else {
+            calorieNasRevision = revision;
+            calorieStatus('conflict', '⚠️ Device and NAS contain different data • auto-save paused',
+              `NAS: ${calorieCount(calorieNasRemote)}. This device: ${calorieCount(calorieData())}. Export local JSON before deciding which copy to keep.`);
+          }
+        }
+      } catch (err) {
+        calorieStatus('offline', '⚠️ NAS unavailable • local-only mode', err.message);
+      } finally { calorieNasBusy = false; }
+    }
+
+    async function calorieDownloadNas() {
+      if (!calorieNasToken) return calorieStatus('local','⚠️ Token missing','Open NAS Setup first.');
+      if (calorieNasSaving) return showToast('Wait for your NAS save to finish.');
+      try {
+        // Fresh read, never rely on an old stored remote snapshot.
+        const reply = await calorieRequest('GET');
+        if (!calorieValidData(reply.store)) throw new Error('NAS is empty or its data is invalid.');
+        if (calorieGetLocalData() !== calorieDataString(reply.store)) {
+          if (!confirm(`This replaces the data currently shown on THIS DEVICE with the NAS copy (${calorieCount(reply.store)}).\n\nExport JSON Backup first if you have any records not on NAS. Continue?`)) return;
+        }
+        clearTimeout(calorieNasTimer);
+        calorieNasRemote = reply.store;
+        calorieSetData(reply.store);
+        calorieRecordSynced(reply.store, reply.revision);
+        showToast('Loaded and synchronized the latest NAS Calorie Tracker data.');
+      } catch (e) { calorieStatus('offline','⚠️ Cannot load NAS data',e.message); }
+    }
+
+    async function calorieUploadNas() {
+      if (!calorieNasToken) return calorieStatus('local','⚠️ Token missing','Open NAS Setup first.');
+      if (calorieNasSaving) return showToast('A save is still running.');
+      try {
+        const reply = await calorieRequest('GET');
+        const snapshot = calorieData();
+        if (reply.store) {
+          if (calorieValidData(reply.store) && calorieDataString(reply.store) === calorieGetLocalData()) {
+            calorieRecordSynced(reply.store, reply.revision);
+            return showToast('Already synchronized.');
+          }
+          throw new Error('NAS already has different Calorie Tracker data. Upload blocked to prevent data loss. Export both copies and reconcile them before replacing NAS records.');
+        }
+        if (!confirm(`First upload to your EMPTY calorie NAS database:\n${calorieCount(snapshot)}\n\nHave you exported your device JSON backup? Upload this device now?`)) return;
+        calorieNasSaving = true;
+        calorieStatus('busy','⏳ Uploading your Calorie Tracker data…','Keep this page open.');
+        const snapshotText = calorieDataString(snapshot);
+        const saved = await calorieRequest('PUT', {revision:reply.revision,store:snapshot});
+        calorieNasRevision = saved.revision;
+        calorieNasLastSynced = snapshotText;
+        calorieNasDirty = calorieGetLocalData() !== snapshotText;
+        calorieWriteMeta();
+        if (calorieNasDirty) {
+          calorieNasPending = true;
+          calorieStatus('busy','⏳ NAS uploaded • saving newer edits…','');
+        } else calorieRecordSynced(snapshot,saved.revision);
+        showToast('Calorie records uploaded successfully. NAS auto-save enabled.');
+      } catch (e) {
+        calorieStatus(e.status === 409 ? 'conflict' : 'offline', '⚠️ NAS upload not completed', e.message);
+      } finally {
+        calorieNasSaving = false;
+        if (calorieNasPending) setTimeout(caloriePush,200);
+      }
+    }
+
+    function calorieExportJson() {
+      const payload = {app:'calorie-macro-weight-tracker', exportedAt:new Date().toISOString(), store:calorieData()};
+      const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download='calorie-tracker-backup-'+new Date().toISOString().slice(0,10)+'.json';
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+      calorieLocalBackupSnapshot=calorieGetLocalData();
+      showToast('Downloaded your complete local Calorie Tracker JSON backup.');
+    }
+    function calorieDownloadObject(payload, filename) {
+      const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=filename;
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }
+    async function calorieBackupNas() {
+      if (!calorieNasToken) return showToast('Connect to your NAS first.');
+      try {
+        const reply=await calorieRequest('GET');
+        if (!calorieValidData(reply.store)) throw new Error('No valid NAS database to back up.');
+        calorieDownloadObject({app:'calorie-macro-weight-tracker',source:'NAS',revision:reply.revision,exportedAt:new Date().toISOString(),store:reply.store},
+          'calorie-NAS-backup-'+new Date().toISOString().slice(0,10)+'.json');
+        calorieNasBackupRevision=reply.revision;
+        showToast('NAS backup downloaded. Also export your DEVICE backup before conflict resolution.');
+      } catch(e){showToast('NAS backup failed: '+e.message);}
+    }
+    async function calorieForceUploadNas() {
+      if (!calorieNasToken) return showToast('Connect to your NAS first.');
+      if (calorieNasSaving || calorieNasBusy) return showToast('Wait for the current NAS operation.');
+      const localSnapshot=calorieGetLocalData();
+      if (!calorieLocalBackupSnapshot || calorieLocalBackupSnapshot!==localSnapshot)
+        return showToast('Export JSON Backup for this DEVICE first (after your latest edits).');
+      if (!calorieNasBackupRevision) return showToast('Click Back up NAS copy first.');
+      calorieNasBusy=true;
+      try {
+        const reply=await calorieRequest('GET');
+        if(!calorieValidData(reply.store)) throw new Error('NAS copy is empty/invalid. Force overwrite is disabled.');
+        if(reply.revision!==calorieNasBackupRevision)
+          throw new Error('NAS changed after your backup. Back up NAS copy again before replacing it.');
+        if(calorieDataString(reply.store)===localSnapshot){calorieRecordSynced(reply.store,reply.revision);return showToast('Already synchronized.');}
+        const summary=`Device: ${calorieCount(calorieData())}\nNAS: ${calorieCount(reply.store)}`;
+        if(!confirm('REPLACE ALL NAS CALORIE DATA with THIS DEVICE?\n\n'+summary+
+          '\n\nOnly proceed after reviewing both downloaded JSON backups. NAS records missing from this device will be replaced.')) return;
+        const typed=prompt('Last confirmation: type REPLACE NAS exactly to overwrite the NAS database:');
+        if(typed!=='REPLACE NAS')return showToast('Replacement canceled.');
+        // Re-read after confirmation; if server changed, abort rather than use a new revision.
+        const latest=await calorieRequest('GET');
+        if(latest.revision!==reply.revision)throw new Error('NAS changed during confirmation. No overwrite performed; back up NAS again.');
+        if(calorieGetLocalData()!==localSnapshot)throw new Error('Device changed during confirmation; export another local backup.');
+        calorieNasSaving=true;
+        calorieStatus('busy','⏳ Replacing NAS from reviewed device backup…','Server will keep a private copy of the previous NAS file.');
+        const snapshot=calorieData();
+        const saved=await calorieRequest('PUT',{revision:latest.revision,store:snapshot});
+        calorieNasBackupRevision=null;
+        calorieLocalBackupSnapshot=null;
+        calorieRecordSynced(snapshot,saved.revision);
+        showToast('NAS replaced after both backups and confirmation. Auto-save ON.');
+      }catch(e){
+        calorieNasDirty=true;calorieWriteMeta();
+        calorieStatus('conflict','🛑 Replacement NOT completed',e.message+' Your local data is preserved.');
+      }finally{calorieNasSaving=false;calorieNasBusy=false;}
+    }
+    async function calorieImportJson(file) {
+      try {
+        if (!file) return;
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const data = parsed.store || parsed;
+        if (!calorieValidData(data)) throw new Error('Not a Calorie Tracker JSON backup.');
+        if (!confirm(`Import ${calorieCount(data)} into this browser? This replaces this device's displayed data. Export current JSON first. The NAS data will NOT be overwritten automatically.`)) return;
+        clearTimeout(calorieNasTimer);
+        calorieNasPending = false;
+        calorieNasDirty = true;
+        calorieNasLastSynced = '';
+        calorieNasRevision = null;
+        calorieWriteMeta();
+        calorieNasMode = 'conflict';
+        calorieSetData(data);
+        calorieStatus('conflict','📥 Imported locally • NAS auto-save paused','Existing NAS data is protected. Back up and reconcile before syncing.');
+        showToast('Imported Calorie Tracker data into this browser. NAS records were not changed.');
+      } catch (e) {
+        showToast('Import failed: '+e.message);
+      }
+    }
+    function calorieInitNas() {
+      calorieNasMeta = calorieReadMeta();
+      calorieNasLastSynced = calorieNasMeta.lastSynced || '';
+      calorieNasRevision = calorieNasMeta.revision || null;
+      calorieNasDirty = calorieNasMeta.dirty === true;
+      try { calorieNasToken = localStorage.getItem(CALORIE_NAS_TOKEN_KEY) || ''; } catch (_) {}
+      document.getElementById('calorieNasSetupBtn').addEventListener('click', () => {
+        const panel=document.getElementById('calorieNasSetupBox');
+        panel.classList.toggle('hidden');
+      });
+      document.getElementById('calorieNasConnectBtn').addEventListener('click', async () => {
+        calorieNasToken = document.getElementById('calorieNasToken').value.trim();
+        if (calorieNasToken.length < 24) return showToast('Token must be at least 24 characters.');
+        try { localStorage.setItem(CALORIE_NAS_TOKEN_KEY,calorieNasToken); } catch (_) {}
+        await calorieCheckNas();
+      });
+      document.getElementById('calorieNasForgetBtn').addEventListener('click', () => {
+        calorieNasToken = ''; calorieNasMode='local';calorieNasRevision=null;
+        try { localStorage.removeItem(CALORIE_NAS_TOKEN_KEY); } catch (_) {}
+        document.getElementById('calorieNasToken').value='';
+        calorieStatus('local','⚠️ NAS token forgotten • local-only mode','Your calorie entries are still saved in this browser.');
+      });
+      document.getElementById('calorieNasCheckBtn').addEventListener('click',()=>calorieCheckNas());
+      document.getElementById('calorieNasDownloadBtn').addEventListener('click',calorieDownloadNas);
+      document.getElementById('calorieNasUploadBtn').addEventListener('click',calorieUploadNas);
+      document.getElementById('calorieNasBackupBtn').addEventListener('click',calorieBackupNas);
+      document.getElementById('calorieNasForceBtn').addEventListener('click',calorieForceUploadNas);
+      document.getElementById('calorieExportJsonBtn').addEventListener('click',calorieExportJson);
+      document.getElementById('calorieImportJsonBtn').addEventListener('click',()=>document.getElementById('calorieImportJsonInput').click());
+      document.getElementById('calorieImportJsonInput').addEventListener('change',(e)=>{
+        calorieImportJson(e.target.files[0]);e.target.value='';
+      });
+      document.getElementById('calorieNasToken').value=calorieNasToken;
+      if (calorieNasToken) calorieCheckNas({auto:true});
+      else calorieStatus('local','⚠️ Local-only mode','Local data preserved. Configure Calorie Tracker NAS Setup to start sharing records.');
+      // This catches remote edits on a second device when returning to the tab.
+      document.addEventListener('visibilitychange',()=>{
+        if (!document.hidden && calorieNasMode==='ready' && !calorieNasDirty && !calorieNasSaving) calorieCheckNas({auto:true});
+      });
+      window.addEventListener('beforeunload',(e)=>{
+        if (calorieNasMode==='busy' && (calorieNasPending || calorieNasSaving)) { e.preventDefault();e.returnValue=''; }
+      });
+      document.getElementById('resetDemoBtn').addEventListener('click',(e)=>{
+        if (!confirm('Reset ALL calorie logs, goals, weights and body-fat entries to spreadsheet defaults? If NAS auto-save is on, this reset will be synchronized to NAS. Export a JSON backup before proceeding.')) {
+          e.stopImmediatePropagation();e.preventDefault();
+        }
+      },true);
+    }
+    window.addEventListener('DOMContentLoaded',calorieInitNas);
+
+  </script>
+</body>
+</html>
